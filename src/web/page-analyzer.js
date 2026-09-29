@@ -4,6 +4,7 @@ import { decideRisk } from "../core/decision-engine.js";
 import { extractTextSignals, findBrandClaims } from "../core/text-signals.js";
 import { findOrganizationBrandClaims, normalizeOrganizationKnowledgeBase } from "../core/org-configuration.js";
 import { classifyBitBStructure, inspectBitBStructure } from "./bitb-analyzer.js";
+import { analyzeClickFix } from "./clickfix-analyzer.js";
 
 export function extractPageSnapshot(document) {
   const main = document.querySelector("main, [role='main']") ?? document.body;
@@ -34,6 +35,10 @@ export function analyzePageSnapshot(snapshot = {}, locationHref = "", organizati
     ...links.flatMap((link) => link.signals),
     ...analyzeDomainIdentity({ hostname: pageUrl.host, claims: claimText, hasCredentialForm: forms.some((form) => form.hasCredentialField), organizationKnowledgeBase: knowledgeBase }).signals
   ];
+  const clickFix = analyzeClickFix(claimText);
+  if (clickFix.detected) {
+    signals.push({ id: "CLICKFIX_EXECUTION_INSTRUCTIONS", category: "social", severity: 5, location: "page", detail: "A página orienta o usuário a abrir uma ferramenta do sistema e colar ou executar um comando. Esse padrão é compatível com ClickFix.", evidence: clickFix.evidence });
+  }
   if (classifyBitBStructure(snapshot.bitb)) {
     signals.push({ id: "POSSIBLE_BITB", category: "context", severity: 0, location: "page", detail: "A estrutura visível se parece com uma janela de autenticação simulada dentro da página. Isso exige revisão e não confirma fraude." });
   }
@@ -64,6 +69,16 @@ export function analyzePageSnapshot(snapshot = {}, locationHref = "", organizati
     semanticExcerpt: pageText.slice(0, 2000),
     decision: decideRisk({ signals, coverage })
   };
+}
+
+export function analyzeSearchResult(payload = {}, organizationKnowledgeBase = {}) {
+  const href = String(payload.href ?? "").slice(0, 4096);
+  const title = String(payload.title ?? "").slice(0, 180);
+  const snippet = String(payload.snippet ?? "").slice(0, 700);
+  const result = analyzePageSnapshot({ title, text: `${title} ${snippet}`, forms: [], links: [] }, href, organizationKnowledgeBase);
+  result.surface = "search-result";
+  result.decision.surface = "search-result";
+  return result;
 }
 
 export function extractPageFeatures(document, locationHref = document.location?.href ?? "") {

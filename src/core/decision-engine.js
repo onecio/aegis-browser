@@ -27,13 +27,14 @@ export function decideRisk({ signals = [], coverage = { sufficient: false, reaso
   const materialLocalSignals = localSignals.filter((signal) => (signal.severity ?? 0) > 0);
   const jevSignals = signals.filter((signal) => signal.source === "jev");
   const hardFormRisk = materialLocalSignals.some((item) => ["CREDENTIAL_FORM_CROSS_DOMAIN", "CREDENTIAL_FORM_INSECURE_TRANSPORT"].includes(item.id));
+  const clickFixRisk = materialLocalSignals.some((item) => item.id === "CLICKFIX_EXECUTION_INSTRUCTIONS" && item.severity >= 5);
   const mismatch = materialLocalSignals.some((item) => item.id === "LINK_DISPLAY_DESTINATION_MISMATCH" || item.id === "BRAND_DOMAIN_CONFLICT" || item.id === "POSSIBLE_LOOKALIKE_DOMAIN");
   const credentials = materialLocalSignals.some((item) => item.category === "credential");
   const credentialForm = localSignals.some((item) => item.id === "CREDENTIAL_FORM_PRESENT");
   const payment = materialLocalSignals.some((item) => ["FINANCIAL_ACTION", "PAYMENT_DETAILS_CHANGE"].includes(item.id));
   const bypass = materialLocalSignals.some((item) => item.id === "PROCESS_BYPASS_REQUEST");
   const highGroups = independentHighCategories(materialLocalSignals);
-  const decisiveLocalRisk = hardFormRisk || (mismatch && (credentials || credentialForm)) || (payment && bypass && mismatch) || highGroups.size >= 3;
+  const decisiveLocalRisk = clickFixRisk || hardFormRisk || (mismatch && (credentials || credentialForm)) || (payment && bypass && mismatch) || highGroups.size >= 3;
 
   let state = "UNKNOWN";
   let reason = "INSUFFICIENT_COVERAGE";

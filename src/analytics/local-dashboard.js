@@ -48,7 +48,7 @@ function normalizeStore(input, now) {
 function validateAnalysis(item) {
   const surface = item?.surface;
   const state = item?.state;
-  if (!["email", "email-inbox", "web", "url"].includes(surface) || !["GREEN", "YELLOW", "RED", "UNKNOWN"].includes(state)) return null;
+  if (!["email", "email-inbox", "web", "url", "search-result"].includes(surface) || !["GREEN", "YELLOW", "RED", "UNKNOWN"].includes(state)) return null;
   return {
     surface,
     state,
@@ -95,7 +95,7 @@ export class LocalDashboard {
     return this.update((day) => {
       for (const item of entries) {
         if (item.surface === "email" || item.surface === "email-inbox") day.counts.emailsAnalyzed = Math.min(MAX_COUNTER, day.counts.emailsAnalyzed + 1);
-        if (item.surface === "web" || item.surface === "url") day.counts.pagesAnalyzed = Math.min(MAX_COUNTER, day.counts.pagesAnalyzed + 1);
+        if (["web", "url", "search-result"].includes(item.surface)) day.counts.pagesAnalyzed = Math.min(MAX_COUNTER, day.counts.pagesAnalyzed + 1);
         if (item.state === "YELLOW" || item.state === "RED") day.counts.warnings = Math.min(MAX_COUNTER, day.counts.warnings + 1);
         if (item.state === "RED") day.counts.highRiskEvents = Math.min(MAX_COUNTER, day.counts.highRiskEvents + 1);
         if (item.localActive) day.counts.localAnalyses = Math.min(MAX_COUNTER, day.counts.localAnalyses + 1);

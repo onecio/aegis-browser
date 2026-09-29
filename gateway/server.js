@@ -10,7 +10,7 @@ const RATE_WINDOW_MS = 60_000;
 const RATE_SUBJECT_LIMIT = 10_000;
 const DOMAIN = z.string().max(253).regex(/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i);
 const bodySchema = z.object({
-  surface: z.enum(["email", "web", "url"]),
+  surface: z.enum(["email", "web", "url", "search-result"]),
   page_domain: DOMAIN.nullable().optional(),
   sender_domain: DOMAIN.nullable().optional(),
   claimed_brands: z.array(z.string().max(40)).max(12).optional(),
@@ -20,6 +20,7 @@ const bodySchema = z.object({
   has_financial_request: z.boolean().optional(),
   has_process_bypass: z.boolean().optional(),
   has_urgency_language: z.boolean().optional(),
+  has_clickfix_instructions: z.boolean().optional(),
   page_has_password_form: z.boolean().optional(),
   subject_excerpt: z.string().max(120).optional(),
   body_excerpt: z.string().max(1200).optional()

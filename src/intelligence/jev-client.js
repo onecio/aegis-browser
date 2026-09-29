@@ -24,6 +24,7 @@ export function buildJevQuestions() {
     credential_request: { type: "noul", instructions: "Does the content ask the recipient to disclose, confirm, or enter authentication credentials or one-time codes?", criteria: { true: "A credential or authentication secret is requested", false: "No credential or authentication secret is requested" } },
     process_bypass: { type: "noul", instructions: "Does the content ask the recipient to bypass a normal verification or approval process?", criteria: { true: "The content asks to skip normal checks, approval, or independent contact", false: "No request to bypass a normal process" } },
     financial_action: { type: "noul", instructions: "Does the content ask for an unusual payment, transfer, invoice change, or financial account update?", criteria: { true: "An unusual or changed financial action is requested", false: "No unusual financial action is requested" } },
+    clickfix_instruction: { type: "noul", instructions: "Does the content instruct the user to open an operating-system execution tool or terminal and paste or run a command as a supposed fix, CAPTCHA, verification, or access step?", criteria: { true: "The content asks the user to open a system tool and paste or execute a command", false: "No such command-execution instruction is present" } },
     classification: {
       type: "choice",
       instructions: "Which interpretation best describes the supplied content and features? This is a semantic judgment, not verification of the sender, organization, or destination.",
@@ -147,7 +148,7 @@ export async function evaluateJev({ features, apiKey, endpoint = API_URL, privac
     const questions = buildJevQuestions();
     const answers = {};
     const signals = [];
-    for (const key of ["urgency", "credential_request", "process_bypass", "financial_action"]) {
+    for (const key of ["urgency", "credential_request", "process_bypass", "financial_action", "clickfix_instruction"]) {
       const answer = data.answers[key];
       if (answer?.type !== "noul" || !Number.isFinite(answer.noul) || answer.noul < 0 || answer.noul > 1) return { status: "error", errorCode: "INVALID_RESPONSE" };
       answers[key] = answer.noul;
@@ -184,7 +185,8 @@ export async function evaluateJev({ features, apiKey, endpoint = API_URL, privac
       ["urgency", "social", "A análise semântica encontrou linguagem potencialmente pressionadora."],
       ["credential_request", "credential", "A análise semântica identificou possível pedido de credenciais."],
       ["process_bypass", "social", "A análise semântica identificou possível tentativa de evitar verificações."],
-      ["financial_action", "financial", "A análise semântica identificou possível solicitação financeira incomum."]
+      ["financial_action", "financial", "A análise semântica identificou possível solicitação financeira incomum."],
+      ["clickfix_instruction", "social", "A análise semântica identificou instruções compatíveis com ClickFix."]
     ]) {
       if (answers[key] >= 0.75) signals.push({ id: `JEV_${key.toUpperCase()}`, category, severity: 2, location: "semantic", detail, source: "jev" });
     }

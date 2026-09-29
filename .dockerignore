@@ -1,0 +1,9 @@
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+dist
+release
+node_modules
+npm-debug.log*

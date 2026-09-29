@@ -29,6 +29,7 @@ export function makeJevState(features, privacyMode = "STRICT") {
     has_financial_request: Boolean(features.signals?.some((signal) => signal.category === "financial")),
     has_process_bypass: Boolean(features.signals?.some((signal) => signal.id === "PROCESS_BYPASS_REQUEST")),
     has_urgency_language: Boolean(features.signals?.some((signal) => signal.id === "URGENCY_LANGUAGE")),
+    has_clickfix_instructions: Boolean(features.signals?.some((signal) => signal.id === "CLICKFIX_EXECUTION_INSTRUCTIONS")),
     page_has_password_form: Boolean(features.forms?.some((form) => form.hasPassword))
   };
   if (privacyMode === "STRICT") return base;

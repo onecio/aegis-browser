@@ -31,6 +31,7 @@ for (const [entry, outfile, format] of bundles) {
 
 await cp(resolve(root, "extension"), outdir, { recursive: true });
 const manifest = JSON.parse(await readFile(resolve(outdir, "manifest.json"), "utf8"));
-manifest.version = process.env.AEGIS_VERSION ?? "0.1.0";
+const packageMetadata = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+manifest.version = process.env.AEGIS_VERSION ?? packageMetadata.version;
 await writeFile(resolve(outdir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`Built AEGIS ${manifest.version} to dist/`);

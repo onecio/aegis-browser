@@ -39,17 +39,17 @@ jobs:
         run: |
           $artifactDirectory = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview'
           New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
-          $archive = Join-Path $artifactDirectory 'aegis-browser-0.1.0-preview1.zip'
+          $archive = Join-Path $artifactDirectory 'aegis-browser-0.2.0-preview1.zip'
           Compress-Archive -Path 'dist/*' -DestinationPath $archive -CompressionLevel Optimal
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  aegis-browser-0.1.0-preview1.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
+          "$hash  aegis-browser-0.2.0-preview1.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
           Copy-Item -LiteralPath 'dist/aegis.spdx.json' -Destination $artifactDirectory
 
       - name: Smoke test extracted install package on live DOM
         shell: pwsh
         run: |
           $artifactDirectory = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview'
-          $archive = Join-Path $artifactDirectory 'aegis-browser-0.1.0-preview1.zip'
+          $archive = Join-Path $artifactDirectory 'aegis-browser-0.2.0-preview1.zip'
           $unpacked = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview-unpacked'
           Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
           $env:AEGIS_EXTENSION_PATH = $unpacked

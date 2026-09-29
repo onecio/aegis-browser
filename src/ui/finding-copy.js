@@ -8,6 +8,7 @@ export const FINDING_MESSAGE_KEYS = Object.freeze({
   ATTACHMENT_DOUBLE_EXTENSION: "signalAttachmentDoubleExtension",
   SPAM_PROMOTION: "signalSpamPromotion",
   POSSIBLE_BITB: "signalPossibleBitb",
+  CLICKFIX_EXECUTION_INSTRUCTIONS: "signalClickFixInstructions",
   CREDENTIAL_FORM_PRESENT: "signalCredentialFormPresent",
   CREDENTIAL_FORM_CROSS_DOMAIN: "signalCredentialFormCrossDomain",
   CREDENTIAL_FORM_INSECURE_TRANSPORT: "signalCredentialFormInsecureTransport",

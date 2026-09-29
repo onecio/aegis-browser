@@ -2,7 +2,7 @@ import { analyzeEmail, analyzeManualUrl } from "../email/email-analyzer.js";
 import { decideRisk } from "../core/decision-engine.js";
 import { evaluateJev, shouldCallJev } from "../intelligence/jev-client.js";
 import { makeJevState } from "../security/redaction.js";
-import { analyzePageSnapshot } from "../web/page-analyzer.js";
+import { analyzePageSnapshot, analyzeSearchResult } from "../web/page-analyzer.js";
 import { normalizeOrganizationKnowledgeBase, resolveManagedConfiguration } from "../core/org-configuration.js";
 import { SessionPatternAnalyzer } from "../intelligence/session-patterns.js";
 import { FEEDBACK_TYPES, LocalDashboard } from "../analytics/local-dashboard.js";
@@ -329,7 +329,7 @@ async function triageEmails(payloads, sender) {
   if (!Array.isArray(payloads) || payloads.length > 20) throw new Error("Inbox triage limit exceeded");
   if (sender.id !== chrome.runtime.id || !Number.isInteger(sender.tab?.id)) throw new Error("Inbox triage requires a browser tab context");
   const current = await settings();
-  const results = [];
+  const analyses = [];
   for (let index = 0; index < payloads.length; index += 1) {
     validatePayload(payloads[index], 2400);
     const result = analyzeEmail(payloads[index], { organizationKnowledgeBase: current.organizationKnowledgeBase });
@@ -341,21 +341,71 @@ async function triageEmails(payloads, sender) {
         if (pattern && (pattern.campaign.correlated || pattern.anomaly.detected)) result.decision = decideRisk({ signals: result.signals, coverage: result.coverage });
       } catch { /* session pattern analysis never blocks the local verdict */ }
     }
-    results.push({ index, state: result.decision.state, findings: result.decision.findings.slice(0, 5).map(({ id, category, severity, location, detail }) => ({ id, category, severity, location, detail })) });
+    analyses.push(result);
   }
+  const jevIndexes = new Set(current.jevEnabled ? analyses.map((analysis, index) => ({ analysis, index })).filter(({ analysis }) => shouldCallJev(analysis, false)).slice(0, 4).map(({ index }) => index) : []);
+  const results = await Promise.all(analyses.map(async (result, index) => {
+    let decision = result.decision;
+    if (jevIndexes.has(index)) {
+      const jev = await maybeEvaluateJev(result, false);
+      decision = decideRisk({ signals: [...result.signals, ...(jev.signals ?? [])], coverage: result.coverage });
+      decision.engineStatus.jev = jev.status;
+      if (jev.errorCode) decision.engineStatus.jevReason = jev.errorCode;
+    } else {
+      decision.engineStatus.jev = current.jevEnabled ? "idle" : "off";
+    }
+    const vector = decision.riskVector ?? {};
+    const kind = decision.state === "RED"
+      ? "phishing"
+      : decision.state === "YELLOW" && Number(vector.spam ?? 0) >= 2 && Number(vector.phishing ?? 0) < 3
+        ? "spam"
+        : "review";
+    return { index, state: decision.state, kind, engineStatus: decision.engineStatus, findings: decision.findings.slice(0, 5).map(({ id, category, severity, location, detail, source }) => ({ id, category, severity, location, detail, ...(source ? { source } : {}) })) };
+  }));
   const states = results.map((item) => item.state);
   const state = states.includes("RED") ? "RED" : states.includes("YELLOW") ? "YELLOW" : states.includes("UNKNOWN") ? "UNKNOWN" : "GREEN";
   const aggregate = {
     state, reason: "INBOX_FAST_TRIAGE", surface: "email-inbox", itemCount: results.length,
     highRiskCount: results.filter((item) => item.state === "RED").length,
     reviewCount: results.filter((item) => item.state === "YELLOW").length,
-    engineStatus: { local: "active", jev: "off" },
+    engineStatus: { local: "active", jev: results.some((item) => item.engineStatus.jev === "connected") ? "connected" : results.find((item) => !["idle", "off"].includes(item.engineStatus.jev))?.engineStatus.jev ?? (current.jevEnabled ? "idle" : "off") },
     analyzedAt: new Date().toISOString(), ruleVersion: "aegis-rules-0.1.0",
     coverage: { sufficient: results.length > 0, reasons: results.length ? [] : ["Nenhuma mensagem reconhecida para triagem"] },
     findings: results.flatMap((item) => item.findings).slice(0, 24)
   };
-  void localDashboard.recordAnalyses(results.map((item) => ({ surface: "email-inbox", state: item.state, engineStatus: { local: "active", jev: "off" } }))).catch(() => undefined);
+  void localDashboard.recordAnalyses(results.map((item) => ({ surface: "email-inbox", state: item.state, engineStatus: item.engineStatus }))).catch(() => undefined);
   await safeStoreDecision(sender.tab.id, aggregate, { surface: "email-inbox" }, undefined, aggregate, sender.tab.url ?? sender.url ?? "");
+  return { ok: true, results };
+}
+
+async function triageSearchResults(payloads, sender) {
+  if (!Array.isArray(payloads) || payloads.length > 20) throw new Error("Search-result triage limit exceeded");
+  if (sender.id !== chrome.runtime.id || !Number.isInteger(sender.tab?.id)) throw new Error("Search-result triage requires a browser tab context");
+  const current = await settings();
+  const analyses = payloads.map((payload) => {
+    validatePayload(payload, 6000);
+    return analyzeSearchResult(payload, current.organizationKnowledgeBase);
+  });
+  const jevIndexes = new Set(current.jevEnabled ? analyses.map((analysis, index) => ({ analysis, index })).filter(({ analysis }) => shouldCallJev(analysis, false)).slice(0, 4).map(({ index }) => index) : []);
+  const results = await Promise.all(analyses.map(async (analysis, index) => {
+    let decision = analysis.decision;
+    if (jevIndexes.has(index)) {
+      const jev = await maybeEvaluateJev(analysis, false);
+      decision = decideRisk({ signals: [...analysis.signals, ...(jev.signals ?? [])], coverage: analysis.coverage });
+      decision.engineStatus.jev = jev.status;
+      if (jev.errorCode) decision.engineStatus.jevReason = jev.errorCode;
+      decision.jev = jev.status === "connected" ? { model: jev.model, answers: jev.answers } : null;
+    } else {
+      decision.engineStatus.jev = current.jevEnabled ? "idle" : "off";
+    }
+    return {
+      index,
+      state: decision.state,
+      engineStatus: decision.engineStatus,
+      findings: decision.findings.slice(0, 5).map(({ id, category, severity, location, detail, source }) => ({ id, category, severity, location, detail, ...(source ? { source } : {}) }))
+    };
+  }));
+  void localDashboard.recordAnalyses(results.map((item) => ({ surface: "search-result", state: item.state, engineStatus: item.engineStatus }))).catch(() => undefined);
   return { ok: true, results };
 }
 
@@ -444,6 +494,7 @@ async function handleMessage(message, sender) {
     case "AEGIS_ANALYZE_EMAIL": return analyze("email", message.payload, sender, Boolean(message.userRequested));
     case "AEGIS_ANALYZE_PAGE": return analyze("web", message.payload, sender, Boolean(message.userRequested));
     case "AEGIS_TRIAGE_EMAILS": return triageEmails(message.payloads, sender);
+    case "AEGIS_TRIAGE_SEARCH_RESULTS": return triageSearchResults(message.payloads, sender);
     case "AEGIS_ANALYZE_URL": return analyzeUrlOnly(message.url);
     case "AEGIS_TEST_JEV": return testJevConnection();
     case "AEGIS_GET_CURRENT_ANALYSIS": {

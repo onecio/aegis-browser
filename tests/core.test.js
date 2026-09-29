@@ -8,7 +8,8 @@ import { analyzeEmail, analyzeManualUrl, extractEmailFromDocument } from "../src
 import { createEmailProviderAdapter, GenericWebmailAdapter, GmailAdapter, normalizeEmailPayload, OutlookWebAdapter } from "../src/email/providers.js";
 import { buildJevQuestions, evaluateJev, shouldCallJev } from "../src/intelligence/jev-client.js";
 import { makeJevState, redactText, redactUrl } from "../src/security/redaction.js";
-import { analyzePageSnapshot } from "../src/web/page-analyzer.js";
+import { analyzePageSnapshot, analyzeSearchResult } from "../src/web/page-analyzer.js";
+import { analyzeClickFix } from "../src/web/clickfix-analyzer.js";
 import { clearRevokedJevCredential, clearRevokedOriginState, clearRevokedSessionAnalyses, originMatchesPermission, toSafeWebOrigin } from "../src/background/permission-cleanup.js";
 import { matchOrganizationDomains, normalizeOrganizationDetectionModel, normalizeOrganizationKnowledgeBase, resolveManagedConfiguration } from "../src/core/org-configuration.js";
 import { DisabledThreatIntelProvider, validateThreatIntelEvidence } from "../src/intelligence/threat-intel.js";
@@ -141,6 +142,32 @@ test("a credential form posting to a different registrable domain is high risk",
   }, "https://microsoft.com/login");
   assert.equal(features.decision.state, "RED");
   assert.ok(features.signals.some((signal) => signal.id === "CREDENTIAL_FORM_CROSS_DOMAIN"));
+});
+
+test("ClickFix requires converging execution instructions and becomes a high-risk page finding", () => {
+  const text = "Para verificar que você é humano, pressione Windows + R, cole o comando PowerShell e pressione Enter.";
+  assert.equal(analyzeClickFix(text).detected, true);
+  const result = analyzePageSnapshot({ title: "Verificação", text, forms: [], links: [] }, "https://support.example.test/check");
+  assert.equal(result.decision.state, "RED");
+  assert.ok(result.signals.some((signal) => signal.id === "CLICKFIX_EXECUTION_INSTRUCTIONS"));
+
+  const benign = analyzePageSnapshot({ title: "Documentação", text: "Abra o PowerShell para administrar seu próprio ambiente de desenvolvimento.", forms: [], links: [] }, "https://docs.example.test/powershell");
+  assert.equal(benign.signals.some((signal) => signal.id === "CLICKFIX_EXECUTION_INSTRUCTIONS"), false);
+  const legitimateSupport = analyzePageSnapshot({ title: "Suporte de TI", text: "For legitimate IT support, open PowerShell, paste the signed diagnostic command, and press Enter to repair access.", forms: [], links: [] }, "https://docs.example.test/support");
+  assert.equal(legitimateSupport.signals.some((signal) => signal.id === "CLICKFIX_EXECUTION_INSTRUCTIONS"), false);
+});
+
+test("search-result analysis flags only material destination or semantic evidence", () => {
+  const risky = analyzeSearchResult({
+    href: "https://micros0ft-login.example/verify",
+    title: "Microsoft account verification",
+    snippet: "Confirm your password immediately to keep access."
+  });
+  assert.equal(risky.surface, "search-result");
+  assert.equal(risky.decision.state, "RED");
+
+  const ordinary = analyzeSearchResult({ href: "https://example.com/", title: "Example", snippet: "Reference information and documentation." });
+  assert.equal(ordinary.decision.state, "GREEN");
 });
 
 test("email link mismatch plus credential request produces red and explains evidence", () => {
@@ -580,6 +607,19 @@ test("Jev rejects malformed Score distributions instead of silently omitting dim
     fetchImpl: async () => new Response(JSON.stringify({ model: "jev-test", answers }), { status: 200, headers: { "content-type": "application/json" } })
   });
   assert.deepEqual(result, { status: "error", errorCode: "INVALID_RESPONSE" });
+});
+
+test("Jev reports ClickFix as a bounded semantic review signal", async () => {
+  const answers = validJevAnswers();
+  answers.clickfix_instruction = { type: "noul", noul: 0.91 };
+  const result = await evaluateJev({
+    apiKey: "user-provided-secret-key",
+    features: { surface: "web", signals: [{ id: "LOCAL_CONTEXT", category: "context", severity: 1 }] },
+    fetchImpl: async () => new Response(JSON.stringify({ model: "jev-test", answers }), { status: 200, headers: { "content-type": "application/json" } })
+  });
+  assert.equal(result.status, "connected");
+  assert.ok(result.signals.some((signal) => signal.id === "JEV_CLICKFIX_INSTRUCTION" && signal.severity === 2));
+  assert.equal(decideRisk({ signals: result.signals, coverage: { sufficient: true } }).state, "YELLOW", "Jev alone cannot produce RED");
 });
 
 test("Jev provider failure returns a local fallback status without exposing error text", async () => {

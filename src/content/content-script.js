@@ -3,12 +3,14 @@ import { createI18n } from "../i18n.js";
 import { extractPageSnapshot } from "../web/page-analyzer.js";
 import { highlightRiskyLinks } from "./link-highlighter.js";
 import { scanQrImages } from "./quishing-analyzer.js";
+import { detectSearchEngine, extractSearchResults } from "../web/search-results.js";
 
 const { t } = createI18n(chrome.i18n);
 
 if (!globalThis.__AEGIS_CONTENT_READY__) {
   globalThis.__AEGIS_CONTENT_READY__ = true;
   const detectedProvider = detectEmailProvider();
+  const detectedSearchEngine = detectSearchEngine();
   const emailAdapter = detectedProvider ? createEmailProviderAdapter(detectedProvider) : null;
   let observer;
   let timer;
@@ -40,7 +42,7 @@ if (!globalThis.__AEGIS_CONTENT_READY__) {
   }
 
   function isAegisOwnedNode(node) {
-    const selector = "[data-aegis-root], [data-aegis-row-label]";
+    const selector = "[data-aegis-root], [data-aegis-row-label], [data-aegis-search-label]";
     if (node?.nodeType === Node.ELEMENT_NODE) return Boolean(node.matches(selector) || node.closest(selector));
     if (node?.nodeType === Node.TEXT_NODE) return Boolean(node.parentElement?.closest(selector));
     return false;
@@ -143,7 +145,7 @@ if (!globalThis.__AEGIS_CONTENT_READY__) {
         }
         continue;
       }
-      const stateLabel = t(result.state === "RED" ? "rowRiskHigh" : "rowRiskAttention");
+      const stateLabel = t(result.kind === "phishing" ? "rowRiskPhishing" : result.kind === "spam" ? "rowRiskSpam" : result.state === "RED" ? "rowRiskHigh" : "rowRiskAttention");
       if (!Object.hasOwn(item.element.dataset, "aegisOriginalOutline")) {
         item.element.dataset.aegisOriginalOutline = item.element.style.outline;
         item.element.dataset.aegisOriginalOutlineOffset = item.element.style.outlineOffset;
@@ -160,6 +162,66 @@ if (!globalThis.__AEGIS_CONTENT_READY__) {
         label.style.cssText = `display:inline-block;margin:2px 6px;padding:2px 6px;border-radius:5px;font:700 10px system-ui;color:${result.state === "RED" ? "#8d2924" : "#76520d"};background:${result.state === "RED" ? "#fff0ed" : "#fff7df"}`;
         (item.element.querySelector("td") ?? item.element).append(label);
       }
+    }
+  }
+
+  function decorateSearchResults(items, results) {
+    for (const item of items) {
+      const result = results.find((candidate) => candidate.index === item.index);
+      const existing = item.element.querySelector(":scope > [data-aegis-search-label]");
+      if (!result || result.state !== "RED") {
+        existing?.remove();
+        if (item.element.dataset.aegisSearchRisk === "red") {
+          item.element.style.outline = item.element.dataset.aegisSearchOriginalOutline ?? "";
+          item.element.style.outlineOffset = item.element.dataset.aegisSearchOriginalOutlineOffset ?? "";
+          item.element.style.borderRadius = item.element.dataset.aegisSearchOriginalRadius ?? "";
+          delete item.element.dataset.aegisSearchRisk;
+          delete item.element.dataset.aegisSearchOriginalOutline;
+          delete item.element.dataset.aegisSearchOriginalOutlineOffset;
+          delete item.element.dataset.aegisSearchOriginalRadius;
+        }
+        continue;
+      }
+      if (!Object.hasOwn(item.element.dataset, "aegisSearchOriginalOutline")) {
+        item.element.dataset.aegisSearchOriginalOutline = item.element.style.outline;
+        item.element.dataset.aegisSearchOriginalOutlineOffset = item.element.style.outlineOffset;
+        item.element.dataset.aegisSearchOriginalRadius = item.element.style.borderRadius;
+      }
+      item.element.dataset.aegisSearchRisk = "red";
+      item.element.style.outline = "3px solid #b42318";
+      item.element.style.outlineOffset = "4px";
+      item.element.style.borderRadius = "10px";
+      if (!existing) {
+        const label = document.createElement("div");
+        label.dataset.aegisSearchLabel = "true";
+        label.setAttribute("role", "status");
+        label.textContent = "AEGIS · Evidências fortes de risco — revise antes de abrir";
+        label.style.cssText = "display:inline-flex;margin:4px 0 8px;padding:5px 9px;border:1px solid #f0b4ad;border-radius:999px;background:#fff1ef;color:#8f2018;font:700 11px/1.3 system-ui,sans-serif";
+        item.element.prepend(label);
+      }
+    }
+  }
+
+  function clearDecorations() {
+    for (const element of document.querySelectorAll("[data-aegis-risk]")) {
+      element.style.outline = element.dataset.aegisOriginalOutline ?? "";
+      element.style.outlineOffset = element.dataset.aegisOriginalOutlineOffset ?? "";
+      element.title = element.dataset.aegisOriginalTitle ?? "";
+      element.querySelector("[data-aegis-row-label]")?.remove();
+      delete element.dataset.aegisRisk;
+      delete element.dataset.aegisOriginalOutline;
+      delete element.dataset.aegisOriginalOutlineOffset;
+      delete element.dataset.aegisOriginalTitle;
+    }
+    for (const element of document.querySelectorAll("[data-aegis-search-risk]")) {
+      element.style.outline = element.dataset.aegisSearchOriginalOutline ?? "";
+      element.style.outlineOffset = element.dataset.aegisSearchOriginalOutlineOffset ?? "";
+      element.style.borderRadius = element.dataset.aegisSearchOriginalRadius ?? "";
+      element.querySelector(":scope > [data-aegis-search-label]")?.remove();
+      delete element.dataset.aegisSearchRisk;
+      delete element.dataset.aegisSearchOriginalOutline;
+      delete element.dataset.aegisSearchOriginalOutlineOffset;
+      delete element.dataset.aegisSearchOriginalRadius;
     }
   }
 
@@ -263,10 +325,28 @@ if (!globalThis.__AEGIS_CONTENT_READY__) {
       const marked = highlightRiskyLinks(root, payload.links, result.links ?? [], { hint: t("linkMismatchHint") });
       highRiskLinks = new WeakMap(marked.map((anchor) => [anchor, new URL(anchor.href, location.href).href]));
       const dangerousForm = payload.forms.some((form) => form.hasPassword);
-      if (activeDecision.state === "RED" && dangerousForm) {
+      const clickFix = activeDecision.findings?.some((finding) => finding.id === "CLICKFIX_EXECUTION_INSTRUCTIONS");
+      if (activeDecision.state === "RED" && clickFix) {
+        showWarning({ title: t("warningClickFixTitle"), detail: t("warningClickFixDetail"), domain: new URL(location.href).hostname });
+      } else if (activeDecision.state === "RED" && dangerousForm) {
         showWarning({ title: t("warningPageCredentialTitle"), detail: t("warningPageCredentialDetail"), domain: new URL(location.href).hostname });
       }
     } catch { /* local analysis is unavailable only if the extension worker cannot be reached */ }
+    finally { inFlight.delete(key); }
+  }
+
+  async function analyzeSearchPage() {
+    const items = extractSearchResults(document, detectedSearchEngine);
+    if (!items.length) return;
+    const payloads = items.map((item) => item.payload);
+    const key = digest(payloads);
+    if (inFlight.has(key) || key === lastDigest) return;
+    inFlight.add(key);
+    lastDigest = key;
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "AEGIS_TRIAGE_SEARCH_RESULTS", payloads });
+      if (result?.ok) decorateSearchResults(items, result.results ?? []);
+    } catch { /* dynamic search-result protection remains best-effort */ }
     finally { inFlight.delete(key); }
   }
 
@@ -274,6 +354,10 @@ if (!globalThis.__AEGIS_CONTENT_READY__) {
     if (!monitoring) return;
     if (emailAdapter) {
       if (!(await analyzeOpenedEmail(userRequested))) await analyzeInbox(userRequested);
+      return;
+    }
+    if (detectedSearchEngine) {
+      await analyzeSearchPage();
       return;
     }
     await analyzeWebPage(userRequested);
@@ -296,6 +380,7 @@ if (!globalThis.__AEGIS_CONTENT_READY__) {
       clearTimeout(timer);
       observer?.disconnect();
       document.querySelector("[data-aegis-root]")?.remove();
+      clearDecorations();
       activeDecision = null;
       highRiskLinks = new WeakMap();
       lastDigest = "";

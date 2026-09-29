@@ -38,6 +38,15 @@ const pageAnalyzerBundle = (await build({
   write: false,
   logLevel: "silent"
 })).outputFiles[0].text;
+const searchResultsBundle = (await build({
+  entryPoints: [resolve(root, "src/web/search-results.js")],
+  bundle: true,
+  format: "esm",
+  platform: "browser",
+  target: "chrome120",
+  write: false,
+  logLevel: "silent"
+})).outputFiles[0].text;
 const quishingAnalyzerBundle = (await build({
   entryPoints: [resolve(root, "src/content/quishing-analyzer.js")],
   bundle: true,
@@ -212,6 +221,23 @@ async function smokeEmailAdapters(browser, baseUrl, kind) {
     assert.equal(bitbResults.fake.state, "GREEN", `${kind}: BitB alone does not raise risk state (${JSON.stringify(bitbResults.fake)})`);
     assert.equal(bitbResults.legitimate.finding, null, `${kind}: a regular OAuth dialog is not labeled BitB`);
     assert.ok(bitbResults.unlabelled.finding, `${kind}: a browser-like overlay without ARIA roles is considered`);
+    const searchResults = await page.evaluate(async (searchModuleUrl, analyzerModuleUrl) => {
+      const { extractSearchResults } = await import(searchModuleUrl);
+      const { analyzeSearchResult } = await import(analyzerModuleUrl);
+      const google = document.implementation.createHTMLDocument("Google results");
+      google.body.innerHTML = '<div id="search"><div class="MjjYud"><a href="https://micros0ft-login.example/verify"><h3>Microsoft account security</h3></a><p>Urgent: confirm your password now.</p></div><div class="MjjYud"><a href="https://example.org/docs"><h3>Product documentation</h3></a><p>Technical reference.</p></div></div>';
+      const bing = document.implementation.createHTMLDocument("Bing results");
+      bing.body.innerHTML = '<ol id="b_results"><li class="b_algo"><h2><a href="https://support.example.org/article">Support article</a></h2><p>Normal troubleshooting guidance.</p></li></ol>';
+      const googleItems = extractSearchResults(google, "google");
+      const bingItems = extractSearchResults(bing, "bing");
+      return {
+        googleCount: googleItems.length,
+        bingCount: bingItems.length,
+        riskyState: analyzeSearchResult(googleItems[0].payload).decision.state,
+        normalState: analyzeSearchResult(bingItems[0].payload).decision.state
+      };
+    }, `${baseUrl}/search-results.mjs`, `${baseUrl}/page-analyzer.mjs`);
+    assert.deepEqual(searchResults, { googleCount: 2, bingCount: 1, riskyState: "RED", normalState: "GREEN" }, `${kind}: Google/Bing DOM extraction and conservative risk classification pass`);
     const quishing = await page.evaluate(async (moduleUrl, fixtureUrl) => {
       const { scanQrImages } = await import(moduleUrl);
       const supported = typeof globalThis.BarcodeDetector === "function"
@@ -582,6 +608,11 @@ const server = createServer((request, response) => {
   if (pathname === "/page-analyzer.mjs") {
     response.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
     response.end(pageAnalyzerBundle);
+    return;
+  }
+  if (pathname === "/search-results.mjs") {
+    response.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+    response.end(searchResultsBundle);
     return;
   }
   if (pathname === "/quishing-analyzer.mjs") {

@@ -1,10 +1,10 @@
-# AEGIS Browser 0.1.0 — instalação e homologação preliminar
+# AEGIS Browser 0.2.0 — instalação e homologação preliminar
 
 Este pacote é uma prévia técnica para instalação manual e testes controlados. Não é publicação em loja nem comprovação de eficácia contra phishing. Use um perfil de navegador separado e dados de teste sem informação pessoal ou corporativa.
 
 ## Instalação em Chrome ou Edge
 
-1. Baixe [`aegis-browser-0.1.0-preview1.zip` na Release do GitHub](https://github.com/onecio/aegis-browser/releases/tag/v0.1.0-preview1) e confira o SHA-256 publicado junto ao pacote.
+1. Baixe [`aegis-browser-0.2.0-preview1.zip` na Release do GitHub](https://github.com/onecio/aegis-browser/releases/tag/v0.2.0-preview1) e confira o SHA-256 publicado junto ao pacote.
 2. Extraia o ZIP em uma pasta estável. O diretório selecionado precisa conter `manifest.json` diretamente; não selecione a pasta pai.
 3. Abra `chrome://extensions` (Chrome) ou `edge://extensions` (Edge), habilite **Modo do desenvolvedor** e selecione **Carregar sem compactação** / **Load unpacked**.
 4. Selecione a pasta extraída. Abra as opções da extensão. Jev, proteção de webmail, navegação Web contínua e menu contextual começam desativados.
