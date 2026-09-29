@@ -6,6 +6,8 @@ import { buildJevQuestions } from "../src/intelligence/jev-client.js";
 const TYPE_SAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const REQUEST_LIMIT_BYTES = 12_288;
 const RESPONSE_LIMIT_BYTES = 48_000;
+const RATE_WINDOW_MS = 60_000;
+const RATE_SUBJECT_LIMIT = 10_000;
 const DOMAIN = z.string().max(253).regex(/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i);
 const bodySchema = z.object({
   surface: z.enum(["email", "web", "url"]),
@@ -107,6 +109,23 @@ function containsSensitiveText(state) {
     || /https?:\/\//i.test(text);
 }
 
+export function consumeRateQuota(rateWindows, subject, at, requestsPerMinute) {
+  const rate = rateWindows.get(subject);
+  if (rate && at - rate.start < RATE_WINDOW_MS) {
+    if (rate.count >= requestsPerMinute) return "rate_limited";
+    rate.count += 1;
+    return "allowed";
+  }
+
+  if (!rate && rateWindows.size >= RATE_SUBJECT_LIMIT) {
+    for (const [key, value] of rateWindows) if (at - value.start >= RATE_WINDOW_MS) rateWindows.delete(key);
+    if (rateWindows.size >= RATE_SUBJECT_LIMIT) return "capacity_unavailable";
+  }
+
+  rateWindows.set(subject, { start: at, count: 1 });
+  return "allowed";
+}
+
 export function createGatewayServer(config, { fetchImpl = fetch, jwks = createRemoteJWKSet(config.jwksUrl), now = Date.now, upstreamTimeoutMs = 4600 } = {}) {
   const rateWindows = new Map();
   const server = createServer(async (request, response) => {
@@ -138,15 +157,9 @@ export function createGatewayServer(config, { fetchImpl = fetch, jwks = createRe
       return writeJson(response, 401, { error: "unauthorized" }, origin);
     }
 
-    const at = now();
-    const rate = rateWindows.get(subject);
-    if (rate && at - rate.start < 60_000 && rate.count >= config.requestsPerMinute) return writeJson(response, 429, { error: "rate_limited" }, origin);
-    if (!rate || at - rate.start >= 60_000) rateWindows.set(subject, { start: at, count: 1 });
-    else rate.count += 1;
-    if (rateWindows.size > 10_000) {
-      for (const [key, value] of rateWindows) if (at - value.start >= 60_000) rateWindows.delete(key);
-      if (rateWindows.size > 10_000) return writeJson(response, 503, { error: "capacity_unavailable" }, origin);
-    }
+    const quota = consumeRateQuota(rateWindows, subject, now(), config.requestsPerMinute);
+    if (quota === "rate_limited") return writeJson(response, 429, { error: "rate_limited" }, origin);
+    if (quota === "capacity_unavailable") return writeJson(response, 503, { error: "capacity_unavailable" }, origin);
 
     let body;
     try { body = await readRequestBody(request); }
@@ -174,7 +187,6 @@ export function createGatewayServer(config, { fetchImpl = fetch, jwks = createRe
         await upstream.body?.cancel();
         await new Promise((resolve) => setTimeout(resolve, Math.min(400, 150 * (2 ** attempt))));
       }
-      clearTimeout(timeout);
       if (!upstream.ok) {
         await upstream.body?.cancel().catch(() => {});
         return writeJson(response, upstream.status === 401 || upstream.status === 403 ? 502 : 503, { error: "provider_unavailable" }, origin);
@@ -183,8 +195,9 @@ export function createGatewayServer(config, { fetchImpl = fetch, jwks = createRe
       if (!data || typeof data.model !== "string" || typeof data.answers !== "object") return writeJson(response, 502, { error: "invalid_provider_response" }, origin);
       return writeJson(response, 200, data, origin);
     } catch {
-      clearTimeout(timeout);
       return writeJson(response, controller.signal.aborted ? 504 : 502, { error: controller.signal.aborted ? "timeout" : "provider_unavailable" }, origin);
+    } finally {
+      clearTimeout(timeout);
     }
   });
   return server;

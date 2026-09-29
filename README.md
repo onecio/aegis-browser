@@ -60,7 +60,7 @@ Para o token aceito pelo gateway, registre o identificador exato da extensão co
 
 ## Base Unicode
 
-O detector de confusáveis usa o perfil `MA` de `confusables.txt`, versão Unicode Security Mechanisms 18.0.0, empacotado localmente. A tabela e a licença Unicode estão em `data/unicode/`; a geração do mapa é reproduzível por `npm run update:unicode` e o script exige revisão explícita se a versão mudar.
+O detector de confusáveis usa o perfil `MA` de `confusables.txt`, versão Unicode Security Mechanisms 18.0.0, empacotado localmente. A tabela e a licença Unicode estão em `data/unicode/`; `npm run update:unicode` gera o mapa a partir da fonte versionada no repositório, sem baixar conteúdo da rede. Para trocar a versão, obtenha e revise manualmente a fonte oficial, atualize a cópia versionada e o número esperado no script.
 
 ## Limites desta versão
 

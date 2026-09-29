@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPair, SignJWT } from "jose";
-import { createGatewayServer, loadConfig } from "../gateway/server.js";
+import { consumeRateQuota, createGatewayServer, loadConfig } from "../gateway/server.js";
 import { buildJevQuestions, evaluateJev } from "../src/intelligence/jev-client.js";
 
 const ORIGIN = "chrome-extension://unit-test-id";
@@ -152,6 +152,17 @@ test("gateway applies per-user rate limiting before forwarding", async (t) => {
   assert.equal(data.upstreamCalls, 1);
 });
 
+test("rate-window subject capacity rejects new entries without exceeding the memory cap", () => {
+  const windows = new Map(Array.from({ length: 10_000 }, (_unused, index) => [`org-approved:user-${index}`, { start: 1_000, count: 1 }]));
+  assert.equal(consumeRateQuota(windows, "org-approved:new-user", 1_500, 30), "capacity_unavailable");
+  assert.equal(windows.size, 10_000);
+  assert.equal(windows.has("org-approved:new-user"), false);
+
+  assert.equal(consumeRateQuota(windows, "org-approved:new-user", 62_000, 30), "allowed");
+  assert.equal(windows.size, 1);
+  assert.equal(windows.get("org-approved:new-user").count, 1);
+});
+
 test("gateway retries transient provider failures and never exposes upstream diagnostics", async (t) => {
   for (const [upstreamStatus, expectedStatus, expectedCalls] of [[401, 502, 1], [403, 502, 1], [429, 503, 2], [500, 503, 1]]) {
     const data = await fixture(t, { upstreamFetch: async () => new Response("upstream credential leak must remain hidden", { status: upstreamStatus }) });
@@ -173,6 +184,22 @@ test("gateway aborts a stalled provider request and returns a generic timeout", 
     upstreamFetch: (_url, init) => new Promise((_resolve, reject) => {
       init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
     })
+  });
+  const response = await request(data);
+  assert.equal(response.status, 504);
+  assert.deepEqual(await response.json(), { error: "timeout" });
+  assert.equal(data.upstreamCalls, 1);
+});
+
+test("gateway timeout remains active while consuming the provider response body", async (t) => {
+  const data = await fixture(t, {
+    upstreamTimeoutMs: 15,
+    upstreamFetch: async (_url, init) => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"model":"jev-test-model",'));
+        init.signal.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true });
+      }
+    }), { headers: { "content-type": "application/json" } })
   });
   const response = await request(data);
   assert.equal(response.status, 504);

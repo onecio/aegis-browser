@@ -33,7 +33,12 @@ for (const path of await walk(dist)) {
   const source = await readFile(path, "utf8");
   const name = path.slice(dist.length + 1);
   if (/\beval\s*\(|\bnew\s+Function\s*\(/.test(source)) failures.push(`${name} contains dynamic code evaluation`);
-  if (/https?:\/\/(?:unpkg\.com|cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com)\//i.test(source)) failures.push(`${name} references remotely hosted executable code`);
+  const normalizedSource = source.toLowerCase();
+  const remoteExecutableHosts = ["unpkg.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"];
+  if (remoteExecutableHosts.some((host) => ["http", "https"].some((scheme) =>
+    ["/", ":"].some((delimiter) => normalizedSource.includes(`${scheme}://${host}${delimiter}`))))) {
+    failures.push(`${name} references remotely hosted executable code`);
+  }
   for (const pattern of findSecretIndicators(source)) failures.push(`${name} contains a ${pattern} pattern`);
   if (/\bBearer\s+[A-Za-z0-9._~-]{24,}/.test(source)) failures.push(`${name} contains a literal bearer credential`);
   if (/\b(?:ts|sk|api)[_-][A-Za-z0-9_-]{32,}\b/.test(source)) failures.push(`${name} contains a token-shaped literal`);

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import puppeteer from "puppeteer-core";
 
-const extensionPath = resolve(process.cwd(), "dist");
+const extensionPath = resolve(process.env.AEGIS_EXTENSION_PATH ?? "dist");
 assert.ok(existsSync(resolve(extensionPath, "manifest.json")), "Run npm run build before the live DOM smoke test");
 
 function browserPath(kind) {

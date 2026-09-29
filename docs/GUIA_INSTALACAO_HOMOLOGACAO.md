@@ -23,7 +23,7 @@ Use uma conta de teste e uma mensagem criada para esse fim, sem nomes reais, ane
 
 Gmail e Outlook alteram seus seletores com frequência. O teste automatizado deste repositório usa fixtures sintéticas; até concluir este roteiro em uma conta de teste consentida, a adaptação ao DOM real permanece **não homologada**.
 
-Para repetir a análise do DOM de uma página pública real, execute `npm run test:live-dom`. Esse teste isolado acessa a página pública da IANA sobre domínios reservados em Chrome e Edge com perfis temporários, valida somente status HTTP e estrutura de título/links e aciona a análise da extensão. Não coleta nem registra texto ou destinos da página; não valida o DOM autenticado de webmail.
+Para repetir a análise do DOM de uma página pública real, execute `npm run test:live-dom`. Esse teste isolado acessa a página pública da IANA sobre domínios reservados em Chrome e Edge com perfis temporários, valida somente status HTTP e estrutura de título/links e aciona a análise da extensão. Não coleta nem registra texto ou destinos da página; não valida o DOM autenticado de webmail. Para testar outro pacote já extraído, defina `AEGIS_EXTENSION_PATH` com o diretório que contém seu `manifest.json` e execute `node scripts/smoke-live-dom.mjs`.
 
 ## Permissões opcionais e menu contextual
 
@@ -36,6 +36,8 @@ Para repetir a análise do DOM de uma página pública real, execute `npm run te
 ## Configuração do Jev pelo gateway
 
 A chave TypeSafe pertence ao **servidor gateway**. Não a cole no campo de token do gateway da extensão. O gateway exige issuer e JWKS HTTPS reais, audiência, escopo, tenant permitido, origem exata da extensão e token OIDC emitido pelo provedor da organização. A prévia não inclui login OIDC; o operador precisa emitir esse token fora da extensão.
+
+O endpoint TypeSafe usado pelo projeto é `https://api.typesafe.ai/v1/systemone`; a [API oficial](https://docs.typesafe.ai/api.md) espera a chave em `Authorization: Bearer <API_KEY>`. O gateway injeta esse cabeçalho do lado servidor. No modo BYOK, a própria extensão faz essa chamada HTTPS usando a chave da sessão.
 
 1. Implante o serviço atrás de HTTPS confiável e configure no ambiente de execução os valores reais de `AEGIS_GATEWAY_ISSUER`, `AEGIS_GATEWAY_JWKS_URL`, `AEGIS_GATEWAY_AUDIENCE`, `AEGIS_GATEWAY_REQUIRED_SCOPE`, `AEGIS_GATEWAY_ALLOWED_TENANTS` e `AEGIS_GATEWAY_ALLOWED_ORIGINS`.
 2. Consulte `chrome://extensions` ou `edge://extensions` e use a origem exata `chrome-extension://<id>` no allowlist. A ID pode variar entre Chrome, Edge e pastas de instalação. Não use CORS `*`.
