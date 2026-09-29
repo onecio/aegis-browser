@@ -1,0 +1,6 @@
+Third-party software bundled with AEGIS Browser
+
+jsQR 1.4.0
+Project: https://github.com/cozmo/jsQR
+License: Apache License 2.0
+The complete license text is included in jsqr-APACHE-2.0.txt.

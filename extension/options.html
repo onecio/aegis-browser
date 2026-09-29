@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title data-i18n="settingsTitle">Configurações · AEGIS</title>
+    <link rel="stylesheet" href="aegis.css">
+    <script defer src="options.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><div class="brand-mark" aria-hidden="true">A</div><div><div class="brand">AEGIS</div><div class="brand-sub" data-i18n="settingsSubtitle">Configurações de segurança e privacidade</div></div></header>
+    <main class="shell">
+      <h1 class="section-title" data-i18n="protectionControl">Controle de proteção</h1>
+      <p class="section-copy" data-i18n="settingsIntro">Escolha onde a extensão pode analisar páginas. As permissões de host são solicitadas apenas quando cada recurso é ativado.</p>
+      <div class="grid">
+        <section class="card">
+          <h2 class="eyebrow" style="margin-top:0" data-i18n="localProtection">PROTEÇÃO LOCAL</h2>
+          <label class="toggle"><input id="emailProtection" type="checkbox"><span><span class="toggle-label" data-i18n="emailProtectionLabel">Analisar Gmail e Outlook Web</span><span class="toggle-copy" data-i18n="emailProtectionCopy">Lê sinais visíveis da mensagem aberta e faz triagem local de remetente, assunto e prévia. Requer acesso aos domínios selecionados.</span></span></label>
+          <label class="toggle"><input id="webProtection" type="checkbox"><span><span class="toggle-label" data-i18n="webProtectionLabel">Análise contínua da Web</span><span class="toggle-copy" data-i18n="webProtectionCopy">Acesso amplo a sites HTTP e HTTPS para analisar páginas. A permissão do navegador será solicitada separadamente.</span></span></label>
+          <label class="toggle"><input id="contextMenu" type="checkbox"><span><span class="toggle-label" data-i18n="contextMenuLabel">Analisar links pelo menu contextual</span><span class="toggle-copy" data-i18n="contextMenuCopy">Adiciona “Analisar link com AEGIS” ao menu de links. A URL é verificada localmente e não é aberta.</span></span></label>
+          <label class="toggle"><input id="sessionIntelligence" type="checkbox"><span><span class="toggle-label" data-i18n="sessionCorrelationLabel">Correlação local de padrões</span><span class="toggle-copy" data-i18n="sessionCorrelationCopy">Opcional e desligada por padrão. Compara sinais entre análises nesta sessão do navegador. Guarda somente impressões HMAC e horários por até 24 horas; não envia dados.</span></span></label>
+          <div class="host-warning" data-i18n="webProtectionWarning">A proteção web contínua dá à extensão acesso ao conteúdo das páginas visitadas. Mantenha-a desligada se preferir analisar páginas somente ao solicitar.</div>
+        </section>
+        <section class="card">
+          <h2 class="eyebrow" style="margin-top:0" data-i18n="jevSectionTitle">INTELIGÊNCIA JEV</h2>
+          <label class="toggle"><input id="jevEnabled" type="checkbox"><span><span class="toggle-label" data-i18n="enableJev">Ativar Jev</span><span class="toggle-copy" data-i18n="enableJevCopy">Quando ativo, features minimizadas podem ser enviadas após triagem local ou análise manual. Falhas não interrompem a proteção local.</span></span></label>
+          <div class="field"><label for="privacyMode" data-i18n="dataPrivacy">Privacidade de dados</label><select id="privacyMode"><option value="STRICT" data-i18n="privacyStrict">Estrita · somente features</option><option value="BALANCED" data-i18n="privacyBalanced">Equilibrada · features e trecho curto redigido</option><option value="ENHANCED" data-i18n="privacyEnhanced">Ampliada · trecho maior com consentimento</option></select></div>
+          <div class="field"><label for="connectionMode" data-i18n="jevConnection">Conexão Jev</label><select id="connectionMode"><option value="gateway" data-i18n="gatewayChoice">AEGIS Secure Gateway</option><option value="byok" data-i18n="byokChoice">Minha própria API Key</option></select></div>
+          <div id="byokFields">
+            <div class="field"><label for="byokKey" data-i18n="byokLabel">Minha TypeSafe API Key</label><input id="byokKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="Informada somente nesta sessão" data-i18n-placeholder="byokPlaceholder"><span class="note" data-i18n="byokNote">A chave fica na memória de sessão da extensão e não é incluída no pacote. Esta instalação não oferece armazenamento persistente.</span></div>
+            <div class="actions"><button id="saveByok" class="button" type="button" data-i18n="saveSessionKey">Salvar chave nesta sessão</button><button id="removeByok" class="button subtle" type="button" data-i18n="removeKey">Remover chave</button></div>
+          </div>
+          <div id="gatewayFields" hidden>
+            <div class="field"><label for="gatewayUrl" data-i18n="gatewayOrigin">Origem HTTPS do gateway</label><input id="gatewayUrl" type="url" spellcheck="false" placeholder="https://aegis.example.com" data-i18n-placeholder="gatewayOriginPlaceholder"><span class="note" data-i18n="gatewayInstruction">O gateway exige um token de acesso emitido pelo operador da organização. Informe a origem sem caminho, parâmetros ou credenciais.</span></div>
+            <div class="field"><label for="gatewayToken" data-i18n="gatewayTokenLabel">Token de acesso temporário</label><input id="gatewayToken" type="password" autocomplete="new-password" spellcheck="false" placeholder="Token OIDC do gateway" data-i18n-placeholder="gatewayTokenPlaceholder"><span class="note" data-i18n="gatewayTokenNote">Guardado apenas na sessão do navegador. Nenhum token ou chave é registrado em logs.</span></div>
+            <div class="actions"><button id="saveGatewayToken" class="button" type="button" data-i18n="saveSessionToken">Salvar token nesta sessão</button><button id="removeGatewayToken" class="button subtle" type="button" data-i18n="removeToken">Remover token</button></div>
+          </div>
+          <div class="actions"><button id="testConnection" class="button" type="button" data-i18n="testConnection">Testar conexão</button></div>
+        </section>
+      </div>
+      <section class="card">
+        <h2 class="eyebrow" style="margin-top:0" data-i18n="organizationHeading">BASE DE CONHECIMENTO DA ORGANIZAÇÃO</h2>
+        <p class="note" data-i18n="organizationDescription">Cadastre marcas, SSO, fornecedores, domínios financeiros e serviços internos autorizados. O conteúdo permanece neste perfil do navegador. Um domínio cadastrado acrescenta contexto e evita conflitos de marca incorretos; não apaga sinais fortes de risco.</p>
+        <div class="field"><label for="organizationKnowledgeBase" data-i18n="organizationJsonLabel">Configuração JSON</label><textarea id="organizationKnowledgeBase" rows="12" spellcheck="false" aria-describedby="organizationKnowledgeHelp" placeholder='{"brands":[],"ssoDomains":[],"vendorDomains":[],"financialDomains":[],"internalDomains":[]}' data-i18n-placeholder="organizationJsonPlaceholder"></textarea><span id="organizationKnowledgeHelp" class="note" data-i18n="organizationJsonHelp">As chaves aceitas são brands, ssoDomains, vendorDomains, financialDomains e internalDomains. Em cada marca, informe name, terms e domains.</span></div>
+        <p id="organizationModelStatus" class="note" role="status" aria-live="polite"></p>
+        <button id="saveOrganizationKnowledgeBase" class="button" type="button" data-i18n="saveOrganization">Salvar base organizacional</button>
+        <p id="organizationManagedNote" class="note" hidden data-i18n="organizationManagedNote">Esta base é administrada pela organização e não pode ser alterada nesta instalação.</p>
+      </section>
+      <section class="card">
+        <h2 class="eyebrow" style="margin-top:0" data-i18n="privacyStorageHeading">PRIVACIDADE E ARMAZENAMENTO</h2>
+        <p class="note" data-i18n="privacyStorageDescription">Jev desligado: a extensão não envia a análise para provedores externos e remove as credenciais de sessão. Valores de campos de senha, cookies e tokens do navegador não são lidos. Nos modos Balanced e Enhanced, trechos de texto passam por filtros de redação, mas nenhum filtro de texto pode garantir anonimização completa. As análises recentes ficam em armazenamento temporário e são removidas quando a aba fecha.</p>
+        <p class="note" data-i18n="byokSecurityNote">O modo BYOK mantém sua chave nesta sessão, mas uma extensão não é um cofre seguro contra software local comprometido. A chave do desenvolvedor não está embutida.</p>
+      </section>
+      <div id="status" class="message" role="status" aria-live="polite"></div>
+      <button id="saveSettings" class="button primary" type="button" data-i18n="saveSettings">Salvar configurações</button>
+      <a class="text-link" href="sidepanel.html" target="_blank" style="margin-left:14px" data-i18n="openSecurityCenter">Abrir Security Center</a>
+    </main>
+  </body>
+</html>

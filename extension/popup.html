@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title data-i18n="extensionName">AEGIS Browser</title>
+    <link rel="stylesheet" href="aegis.css">
+    <script defer src="popup.js"></script>
+  </head>
+  <body class="popup-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">A</div>
+      <div><div class="brand">AEGIS</div><div class="brand-sub" data-i18n="securityCenter">Security Center</div></div>
+    </header>
+    <main class="content">
+      <div class="mode-row"><span id="mode" class="mode-tag" data-i18n="modeLocal">AEGIS LOCAL</span><span id="engine" class="status-dot" data-i18n="engineAvailableLocal">Proteção local disponível</span></div>
+      <section id="summary" class="panel-card" aria-live="polite">
+        <div class="risk"><div id="riskIcon" class="risk-icon unknown">?</div><div><div id="riskTitle" class="risk-title" data-i18n="notAnalyzedTitle">Análise ainda não executada</div><div id="riskCopy" class="risk-copy" data-i18n="notAnalyzedCopy">Analise a página atual ou verifique um endereço sem abri-lo.</div></div></div>
+        <div id="findings" hidden></div>
+      </section>
+      <div class="actions">
+        <button id="analyzePage" class="button primary" type="button" data-i18n="analyzePage">Analisar esta página</button>
+        <button id="openPanel" class="button" type="button" data-i18n="openSecurityCenter">Abrir Security Center</button>
+      </div>
+      <div class="eyebrow" data-i18n="manualAddressHeading">Verificação manual de endereço</div>
+      <form id="urlForm" class="input-row">
+        <input id="urlInput" type="url" autocomplete="off" spellcheck="false" placeholder="https://exemplo.com" aria-label="Endereço para analisar" data-i18n-placeholder="urlPlaceholder" data-i18n-aria-label="urlInputLabel">
+        <button class="button" type="submit" data-i18n="verifyUrl">Verificar</button>
+      </form>
+      <div id="urlResult" class="message" aria-live="polite"></div>
+      <div id="status" class="message" aria-live="polite"></div>
+      <footer class="footer"><span class="note" data-i18n="localNoContent">A análise local não envia conteúdo.</span><a href="options.html" target="_blank" data-i18n="settings">Configurações</a></footer>
+    </main>
+  </body>
+</html>

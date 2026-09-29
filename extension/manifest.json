@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "short_name": "__MSG_shortName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "0.1.0",
+  "minimum_chrome_version": "120",
+  "default_locale": "pt_BR",
+  "permissions": ["storage", "activeTab", "scripting", "sidePanel"],
+  "storage": { "managed_schema": "managed-schema.json" },
+  "optional_permissions": ["contextMenus"],
+  "optional_host_permissions": [
+    "https://mail.google.com/*",
+    "https://outlook.office.com/*",
+    "https://outlook.live.com/*",
+    "https://api.typesafe.ai/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": { "service_worker": "service-worker.js", "type": "module" },
+  "action": {
+    "default_title": "__MSG_actionAnalyze__",
+    "default_popup": "popup.html"
+  },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self' https:"
+  }
+}

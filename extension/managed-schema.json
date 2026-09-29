@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "properties": {
+    "emailProtection": { "type": "boolean", "title": "Enable email protection" },
+    "webProtection": { "type": "boolean", "title": "Enable web protection" },
+    "sessionIntelligence": { "type": "boolean", "title": "Enable local session pattern analysis" },
+    "organizationKnowledgeBase": {
+      "type": "object",
+      "properties": {
+        "brands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "terms": { "type": "array", "items": { "type": "string" } },
+              "domains": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["name", "domains"]
+          }
+        },
+        "ssoDomains": { "type": "array", "items": { "type": "string" } },
+        "vendorDomains": { "type": "array", "items": { "type": "string" } },
+        "financialDomains": { "type": "array", "items": { "type": "string" } },
+        "internalDomains": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "organizationDetectionModel": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "integer" },
+        "modelId": { "type": "string", "maxLength": 64 },
+        "modelVersion": { "type": "string", "maxLength": 32 },
+        "knowledgeBase": {
+          "type": "object",
+          "properties": {
+            "brands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "terms": { "type": "array", "items": { "type": "string" } },
+                  "domains": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["name", "domains"]
+              }
+            },
+            "ssoDomains": { "type": "array", "items": { "type": "string" } },
+            "vendorDomains": { "type": "array", "items": { "type": "string" } },
+            "financialDomains": { "type": "array", "items": { "type": "string" } },
+            "internalDomains": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "required": ["schemaVersion", "modelId", "modelVersion", "knowledgeBase"]
+    }
+  }
+}

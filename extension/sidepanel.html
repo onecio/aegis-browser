@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title data-i18n="securityCenter">AEGIS Security Center</title>
+    <link rel="stylesheet" href="aegis.css">
+    <script defer src="sidepanel.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><div class="brand-mark" aria-hidden="true">A</div><div><div class="brand">AEGIS</div><div class="brand-sub" data-i18n="securityCenter">Security Center</div></div><span id="mode" class="badge" style="margin-left:auto" data-i18n="modeLocal">LOCAL</span></header>
+    <main class="shell">
+      <div class="mode-row"><span class="eyebrow" style="margin:0" data-i18n="currentTabAnalysis">ANÁLISE DA ABA ATUAL</span><span id="engineStatus" class="status-dot" data-i18n="engineLocal">Local</span></div>
+      <section class="card">
+        <div class="risk"><div id="riskIcon" class="risk-icon unknown">?</div><div><div id="riskTitle" class="risk-title" data-i18n="noAnalysisTitle">Sem análise disponível</div><div id="riskCopy" class="risk-copy" data-i18n="noAnalysisCopy">Execute uma análise para ver os sinais observados nesta aba.</div></div></div>
+        <div class="actions"><button id="analyze" class="button primary" type="button" data-i18n="analyzePage">Analisar esta página</button></div>
+      </section>
+      <section class="card"><div class="eyebrow" style="margin-top:0" data-i18n="indicatorsHeading">INDICADORES</div><div id="findings" class="scroll"><p class="note" data-i18n="noIndicatorsLoaded">Nenhum indicador carregado.</p></div></section>
+      <section class="card"><div class="eyebrow" style="margin-top:0" data-i18n="riskVectorsHeading">VETORES DE RISCO</div><div id="vectors" class="metric-grid"></div></section>
+      <section class="card" id="contextCard" hidden><div class="eyebrow" style="margin-top:0" data-i18n="contextHeading">REMETENTE, DOMÍNIO E LINKS</div><div id="contextDetails" class="scroll" aria-live="polite"></div></section>
+      <section class="card" id="jevJudgmentsCard" hidden><div class="eyebrow" style="margin-top:0" data-i18n="jevJudgmentsHeading">AVALIAÇÕES SEMÂNTICAS · JEV</div><p class="note" data-i18n="jevDisclaimer">Estas são avaliações semânticas, não verificações factuais nem probabilidades de fraude. A concentração descreve a distribuição de cada resposta.</p><div id="jevJudgments" class="scroll" aria-live="polite"></div></section>
+      <section class="card"><div class="eyebrow" style="margin-top:0" data-i18n="recommendationHeading">RECOMENDAÇÃO</div><p id="recommendation" class="note" data-i18n="recommendationDefault">Verifique a origem por um canal independente antes de compartilhar credenciais ou autorizar pagamentos.</p></section>
+      <section class="card" id="feedbackCard" hidden aria-labelledby="feedbackTitle">
+        <div id="feedbackTitle" class="eyebrow" style="margin-top:0" data-i18n="feedbackHeading">FEEDBACK DESTA ANÁLISE</div>
+        <p class="note" data-i18n="feedbackPrivacy">O feedback fica neste dispositivo, sem vínculo ao conteúdo. Ele não modifica a mensagem no Gmail/Outlook nem altera as regras do AEGIS.</p>
+        <div id="feedbackActions" class="actions">
+          <button class="button" type="button" data-feedback="useful" data-i18n="feedbackUseful">Esta análise foi útil</button>
+          <button class="button" type="button" data-feedback="falsePositive" data-i18n="feedbackFalsePositive">Falso positivo</button>
+          <button class="button" type="button" data-feedback="spam" data-i18n="feedbackSpam">Registrar como spam</button>
+          <button class="button" type="button" data-feedback="legitimate" data-i18n="feedbackLegitimate">Registrar como legítima</button>
+          <button class="button" type="button" data-feedback="phishing" data-i18n="feedbackPhishing">Reportar phishing</button>
+        </div>
+        <p id="feedbackStatus" class="message" aria-live="polite"></p>
+      </section>
+      <section class="card" aria-labelledby="dashboardTitle">
+        <div id="dashboardTitle" class="eyebrow" style="margin-top:0" data-i18n="dashboardHeading">PAINEL LOCAL · ÚLTIMOS 30 DIAS</div>
+        <div id="dashboardMetrics" class="metric-grid" aria-live="polite"></div>
+        <p id="dashboardStatus" class="note" data-i18n="dashboardPrivacy">Somente contagens locais agregadas; nenhum conteúdo ou indicador de mensagem é armazenado aqui.</p>
+        <button id="clearDashboard" class="button subtle" type="button" data-i18n="clearMetrics">Apagar métricas locais</button>
+      </section>
+      <div class="footer"><span class="note" data-i18n="optionalJevFooter">Jev é opcional; a proteção local permanece ativa.</span><a href="options.html" target="_blank" data-i18n="settings">Configurações</a></div>
+    </main>
+  </body>
+</html>

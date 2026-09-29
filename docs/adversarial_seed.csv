@@ -1,0 +1,9 @@
+id,surface,category,scenario,observed_signals,expected_state,phase,caveat
+A01,email,unicode,Confusable Unicode domain accompanies an account login request,brand_conflict_and_credential_request,RED,MVP,Reserved synthetic domains only
+A02,email,url_obfuscation,Redirect parameters obscure an unobserved follow-up destination,redirect_parameter_and_destination_not_followed,UNKNOWN,MVP,Never follow redirects automatically
+A03,email,image_based_phishing,Image-only message includes a QR candidate but image decoding is incomplete,image_only_content_and_partial_qr_coverage,UNKNOWN,Fase2,No OCR or image upload
+A04,email,qr_phishing,QR resolves locally to an HTTP(S) login URL with sensitive query keys,decoded_qr_url_and_sensitive_parameters,YELLOW,Fase2,Query values are discarded and destination is not opened
+A05,email,low_urgency_phishing,Calm request asks the recipient to authenticate on an unrelated domain,credential_request_and_destination_conflict,RED,MVP,Urgency is not required for high risk
+A06,email,legitimate_looking_language,Polite compliance language requests credentials through an off-domain link,credential_request_and_destination_conflict,RED,MVP,Polite wording does not neutralize technical conflict
+A07,email,nested_redirects,Chained redirect parameters hide the final destination,nested_redirect_unresolved,UNKNOWN,MVP,Do not resolve the chain automatically
+A08,email,compromised_legitimate_looking_domain,Known vendor-looking origin requests a payment change but compromise status is unavailable,financial_change_and_unverified_sender_integrity,UNKNOWN,MVP,Domain recognition does not prove current integrity

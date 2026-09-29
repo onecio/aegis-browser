@@ -1,0 +1,84 @@
+name: AEGIS validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run validation suite
+        run: npm run validate
+
+      - name: Package installable preview and checksum
+        shell: pwsh
+        run: |
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview'
+          New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
+          $archive = Join-Path $artifactDirectory 'aegis-browser-0.1.0-preview1.zip'
+          Compress-Archive -Path 'dist/*' -DestinationPath $archive -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  aegis-browser-0.1.0-preview1.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
+          Copy-Item -LiteralPath 'dist/aegis.spdx.json' -Destination $artifactDirectory
+
+      - name: Upload installable preview and SPDX software bill of materials
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: aegis-browser-preview-${{ github.run_id }}
+          path: ${{ runner.temp }}\aegis-browser-preview\*
+          if-no-files-found: error
+          retention-days: 14
+
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download and verify Gitleaks 8.30.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
+          curl --fail --location --silent --show-error \
+            'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' \
+            --output "$archive"
+          printf '%s  %s\n' \
+            '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' \
+            "$archive" | sha256sum --check --status
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version | grep --fixed-strings --line-regexp '8.30.1'
+
+      - name: Scan complete Git history for secrets
+        shell: bash
+        run: >-
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --exit-code 1
+          --log-opts="--all" .

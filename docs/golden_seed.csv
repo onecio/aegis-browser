@@ -1,0 +1,19 @@
+id,surface,category,scenario,observed_signals,expected_state,phase,caveat
+G01,email,legitimate_personal,Mensagem pessoal sem links nem pedidos,remetente_e_conteudo_visivel,GREEN,MVP,Somente com cobertura suficiente
+G02,email,transactional_legitimate,Recibo esperado com dominio coerente,dominio_coerente_sem_pedido_de_credenciais,GREEN,MVP,Nao comprova autenticidade do remetente
+G03,email,marketing,Oferta insistente com link de cancelamento coerente,linguagem_promocional,YELLOW,MVP,Avaliar se ruido deve ser silenciado
+G04,email,spam,Oferta massiva e remetente pouco claro,spam_e_remetente_ambiguo,YELLOW,MVP,Spam nao implica phishing
+G05,email,phishing,Link exibido como login oficial aponta para dominio alheio,display_href_mismatch_e_urgencia,RED,MVP,Dominio de exemplo sintetico
+G06,email,spear_phishing,Pedido pessoal de login em dominio semelhante,solicitacao_credencial_e_lookalike,RED,MVP,Sem nomes reais
+G07,email,bec,Fornecedor pede mudanca urgente de conta e dominio diverge,mudanca_bancaria_e_conflito_de_identidade,RED,MVP,Verificacao por canal independente
+G08,email,credential_phishing,Mensagem pede senha em destino alheio,solicitacao_credencial_e_destino_alheio,RED,MVP,Nunca coletar senha
+G09,email,quishing,Mensagem apresenta QR com URL para login,qr_e_destino_de_credenciais,UNKNOWN,Fase2,Sem modulo QR no MVP
+G10,email,brand_impersonation,Nome Microsoft com endereco em dominio lookalike,display_name_domain_mismatch,YELLOW,MVP,Convergencia adicional pode elevar risco
+G11,web,fake_login,Pagina alega marca e envia formulario a dominio alheio,marca_conflitante_e_form_action,RED,MVP,Nao ler valores dos campos
+G12,web,bitb,Pagina desenha janela OAuth e barra falsa,possible_bitb,UNKNOWN,Fase2,Sem modulo BitB no MVP
+G13,email,legitimate_security,Notificacao de seguranca coerente sem pedido de senha,dominio_coerente_sem_link_enganoso,GREEN,MVP,Dom nao prova autenticacao de email
+G14,email,unicode_adversarial,Dominio com confusable e pedido de login,confusable_e_credencial,RED,MVP,IDN isolado nao e malicioso
+G15,email,low_urgency_phishing,Pedido calmo de verificacao por link de dominio alheio,destino_alheio_e_credencial,RED,MVP,Urgencia nao e requisito
+G16,email,shortener,Mensagem promocional usa encurtador sem outro sinal,obscured_destination,YELLOW,MVP,Nao chamar de phishing
+G17,email,redirect_adversarial,Link aponta para redirecionador e destino final nao observado,redirect_nao_resolvido,UNKNOWN,MVP,Nao seguir no contexto autenticado
+G18,email,compromised_domain,Fornecedor de dominio conhecido pede troca de conta fora do processo,mudanca_bancaria_e_desvio_de_processo,YELLOW,MVP,Conhecimento organizacional pode elevar risco
