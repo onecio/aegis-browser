@@ -4,7 +4,7 @@ Este pacote é uma prévia técnica para instalação manual e testes controlado
 
 ## Instalação em Chrome ou Edge
 
-1. Baixe `aegis-browser-0.1.0-preview1.zip` na seção Releases do repositório AEGIS Browser e confira o SHA-256 publicado junto ao pacote.
+1. Baixe [`aegis-browser-0.1.0-preview1.zip` na Release do GitHub](https://github.com/onecio/aegis-browser/releases/tag/v0.1.0-preview1) e confira o SHA-256 publicado junto ao pacote.
 2. Extraia o ZIP em uma pasta estável. O diretório selecionado precisa conter `manifest.json` diretamente; não selecione a pasta pai.
 3. Abra `chrome://extensions` (Chrome) ou `edge://extensions` (Edge), habilite **Modo do desenvolvedor** e selecione **Carregar sem compactação** / **Load unpacked**.
 4. Selecione a pasta extraída. Abra as opções da extensão. Jev, proteção de webmail, navegação Web contínua e menu contextual começam desativados.
@@ -26,6 +26,8 @@ Gmail e Outlook alteram seus seletores com frequência. O teste automatizado des
 Para repetir a análise do DOM de uma página pública real, execute `npm run test:live-dom`. Esse teste isolado acessa a página pública da IANA sobre domínios reservados em Chrome e Edge com perfis temporários, valida somente status HTTP e estrutura de título/links e aciona a análise da extensão. Não coleta nem registra texto ou destinos da página; não valida o DOM autenticado de webmail. Para testar outro pacote já extraído, defina `AEGIS_EXTENSION_PATH` com o diretório que contém seu `manifest.json` e execute `node scripts/smoke-live-dom.mjs`.
 
 ## Permissões opcionais e menu contextual
+
+Os smoke tests em Chrome e Edge clicam no controle real da extensão, confirmam a concessão/revogação de `contextMenus` e verificam que o service worker consegue registrar o item. Eles não selecionam o item no menu nativo do sistema. Concessões de origem para Gmail/Outlook e acesso amplo à Web dependem do prompt de hosts do navegador e precisam de confirmação manual no perfil de teste.
 
 1. Em Opções, habilite **Analisar links pelo menu contextual** e aceite a solicitação de `contextMenus` do navegador.
 2. Em uma página de teste, clique com o botão direito sobre um link. Confirme a presença de **Analisar link com AEGIS** e selecione-a.
@@ -70,4 +72,4 @@ Para testar indisponibilidade, pare o gateway de teste ou bloqueie temporariamen
 
 ## Limites desta prévia
 
-CI e CodeQL remotos, varredura Gitleaks do histórico, hash do pacote, build do runner, smoke tests automatizados e inspeção estática serão publicados no GitHub quando executados. Eles não substituem o teste interativo de concessão/revogação, o clique nativo do menu, o DOM autenticado real, a revisão externa independente, o corpus consentido nem a análise de falsos positivos/negativos. Não use esta prévia como única proteção de uma conta ou organização.
+CI, CodeQL e Gitleaks foram executados remotamente; o CodeQL atual não apresenta alertas abertos. A CI também valida o ZIP extraído em Chrome e Edge contra a página pública da IANA. Duas revisões independentes de código foram concluídas e as correções identificadas foram verificadas. Esses resultados não substituem a confirmação manual dos prompts de hosts, o clique no menu nativo, o DOM autenticado de Gmail/Outlook, credenciais de homologação reais, uma auditoria externa, corpus consentido ou análise de falsos positivos/negativos. Não use esta prévia como única proteção de uma conta ou organização.

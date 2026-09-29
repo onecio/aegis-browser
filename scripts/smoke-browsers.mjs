@@ -291,6 +291,39 @@ async function smokeBrowser(kind, fixtureUrl) {
     assert.equal(await options.$eval("#contextMenu", (node) => node.checked), false, `${kind}: context-menu permission is opt-in`);
     assert.equal(response.settings.sessionIntelligence, false, `${kind}: local session intelligence defaults to OFF`);
 
+    const optionalPermissions = await options.evaluate(async () => ({
+      email: await chrome.permissions.contains({ origins: ["https://mail.google.com/*", "https://outlook.office.com/*", "https://outlook.live.com/*"] }),
+      web: await chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }),
+      contextMenu: await chrome.permissions.contains({ permissions: ["contextMenus"] })
+    }));
+    assert.deepEqual(optionalPermissions, { email: false, web: false, contextMenu: false }, `${kind}: optional host and context-menu permissions start ungranted`);
+
+    await options.click("#contextMenu");
+    await options.waitForFunction(async () => {
+      const current = await new Promise((resolveMessage) => chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" }, resolveMessage));
+      return current.settings.contextMenu && await chrome.permissions.contains({ permissions: ["contextMenus"] });
+    }, { timeout: 10_000 });
+    await options.waitForFunction(() => document.querySelector("#status")?.textContent.includes("ativa"), { timeout: 10_000 });
+    // Chromium has no contextMenus.getAll API; the missing-ID removal is a negative control.
+    const absentMenu = await workerNetworkSession.send("Runtime.evaluate", {
+      expression: `new Promise((resolveMenu) => chrome.contextMenus.remove("aegis-absent-probe", () => resolveMenu({ missingItemReported: Boolean(chrome.runtime.lastError) })))`,
+      awaitPromise: true,
+      returnByValue: true
+    });
+    assert.deepEqual(absentMenu.result?.value, { missingItemReported: true }, `${kind}: the menu API reports an absent item before the registered item is probed`);
+    const menuRegistration = await workerNetworkSession.send("Runtime.evaluate", {
+      expression: `new Promise((resolveMenu) => chrome.contextMenus.remove("aegis-analyze-link", () => { const removeError = chrome.runtime.lastError?.message ?? null; chrome.contextMenus.create({ id: "aegis-analyze-link", title: "Analisar link com AEGIS", contexts: ["link"] }, () => resolveMenu({ removeError, createError: chrome.runtime.lastError?.message ?? null })); }))`,
+      awaitPromise: true,
+      returnByValue: true
+    });
+    assert.deepEqual(menuRegistration.result?.value, { removeError: null, createError: null }, `${kind}: the optional context-menu item is created by the real extension service worker`);
+    await options.click("#contextMenu");
+    await options.waitForFunction(async () => {
+      const current = await new Promise((resolveMessage) => chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" }, resolveMessage));
+      return !current.settings.contextMenu && !await chrome.permissions.contains({ permissions: ["contextMenus"] });
+    }, { timeout: 10_000 });
+    process.stdout.write(`${kind}: context-menu permission granted and revoked through the options UI; menu item registration verified in the service worker.\n`);
+
     await options.$eval("#sessionIntelligence", (node) => { node.checked = true; node.dispatchEvent(new Event("change", { bubbles: true })); });
     await options.evaluate(() => document.querySelector("#saveSettings").click());
     await options.waitForFunction(() => document.querySelector("#status")?.textContent.startsWith("Configurações salvas"), { timeout: 10_000 });
