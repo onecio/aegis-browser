@@ -1,8 +1,10 @@
+import { makeJevState } from "../security/redaction.js";
+import { summarizeConnection, connectionErrorText } from "./operational-status.js";
 import { createI18n } from "../i18n.js";
 
 const { t, localizeDocument } = createI18n(chrome.i18n);
 localizeDocument(document);
-const EMAIL_ORIGINS = ["https://mail.google.com/*", "https://outlook.office.com/*", "https://outlook.live.com/*"];
+const EMAIL_ORIGINS = ["https://mail.google.com/*", "https://outlook.office.com/*", "https://outlook.office365.com/*", "https://outlook.live.com/*", "https://outlook.cloud.microsoft/*"];
 const WEB_ORIGINS = ["https://*/*", "http://*/*"];
 const $ = (selector) => document.querySelector(selector);
 const status = (text, kind = "") => { $("#status").textContent = text; $("#status").className = `message ${kind}`; };
@@ -16,6 +18,7 @@ function selectedSettings() {
     sessionIntelligence: $("#sessionIntelligence").checked,
     jevEnabled: $("#jevEnabled").checked,
     privacyMode: $("#privacyMode").value,
+    contentSharingConsent: $("#privacyMode").value !== "STRICT" && $("#contentSharingConsent").checked,
     connectionMode: $("#connectionMode").value,
     gatewayUrl: $("#gatewayUrl").value.trim()
   };
@@ -27,11 +30,54 @@ function renderMode() {
   $("#gatewayFields").hidden = !gateway;
 }
 
+function renderPrivacyPreview() {
+  const mode = $("#privacyMode").value;
+  $("#contentConsentRow").hidden = mode === "STRICT";
+  if (mode === "STRICT") $("#contentSharingConsent").checked = false;
+  const example = { surface: "email", senderDomain: "example.test", pageDomain: null, subject: "Aviso de acesso", semanticExcerpt: "Revise sua conta. contato@example.test https://example.test/?token=synthetic", claimedBrands: [], links: [], signals: [], forms: [] };
+  $("#privacyPreview").textContent = JSON.stringify(makeJevState(example, mode), null, 2);
+  $("#privacyPreviewLimit").textContent = t(mode === "STRICT" ? "privacyPreviewStrictLimit" : "privacyPreviewExcerptLimit");
+  $("#diagnosticPrivacy").textContent = t(mode === "STRICT" ? "privacyStrict" : mode === "BALANCED" ? "privacyBalanced" : "privacyEnhanced");
+}
+
+function validateContentConsent(settings) {
+  if (settings.privacyMode !== "STRICT" && !settings.contentSharingConsent) {
+    status(t("diagnosticConsent"), "error");
+    $("#contentSharingConsent").focus();
+    return false;
+  }
+  return true;
+}
+
+async function refreshDiagnostic() {
+  const config = await chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" });
+  if (!config?.ok) return;
+  $("#diagnosticAi").textContent = summarizeConnection(config, t).text;
+  const last = config.connectionRuntime?.lastTest ?? config.lastJevTest;
+  $("#diagnosticLastTest").textContent = last ? `${last.at} · ${last.mode} · ${last.ok ? t("diagnosticTestPassed", [last.model ?? "JEV"]) : connectionErrorText(last.errorCode, t)}` : t("diagnosticNoTest");
+}
+
 async function saveSecret(kind, input, successText) {
-  const result = await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SECRET", kind, value: input.value.trim() });
-  if (!result?.ok) { status(t("credentialSaveFailed"), "error"); return; }
-  input.value = "";
-  status(successText, "success");
+  try {
+    const value = input.value.trim();
+    if (value) {
+      const next = selectedSettings();
+      if (!validateContentConsent(next)) return;
+      next.connectionMode = kind === "byok" ? "byok" : "gateway";
+      next.jevEnabled = true;
+      if (!(await requestProviderPermission(next))) { status(t("credentialSaveFailed"), "error"); return; }
+      const saved = await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SETTINGS", settings: next });
+      if (!saved?.ok) { status(saved?.error ?? t("credentialSaveFailed"), "error"); return; }
+      $("#connectionMode").value = next.connectionMode;
+      $("#jevEnabled").checked = true;
+      renderMode();
+    }
+    const result = await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SECRET", kind, value });
+    if (!result?.ok) { status(result?.error ?? t("credentialSaveFailed"), "error"); return; }
+    input.value = "";
+    status(successText, "success");
+    await refreshDiagnostic();
+  } catch { status(t("credentialSaveFailed"), "error"); }
 }
 
 async function requestProviderPermission(settings) {
@@ -55,6 +101,8 @@ async function load() {
   $("#sessionIntelligence").checked = config.sessionIntelligence ?? false;
   $("#jevEnabled").checked = config.jevEnabled;
   $("#privacyMode").value = config.privacyMode;
+  $("#contentSharingConsent").checked = config.contentSharingConsent === true;
+  renderPrivacyPreview();
   $("#connectionMode").value = config.connectionMode;
   $("#gatewayUrl").value = config.gatewayUrl;
   $("#organizationKnowledgeBase").value = JSON.stringify(config.organizationKnowledgeBase ?? { brands: [], ssoDomains: [], vendorDomains: [], financialDomains: [], internalDomains: [] }, null, 2);
@@ -83,6 +131,11 @@ async function load() {
   }
   if (result.hasByok) status(t("byokSessionActive"));
   else if (result.hasGatewayToken) status(t("gatewayTokenSessionActive"));
+  await refreshDiagnostic();
+  if (result.lastJevTest && config.jevEnabled) {
+    const last = result.lastJevTest;
+    status(`${last.at} · ${last.mode} · ${last.ok ? t("connectionValidated", [last.model]) : t("connectionFailed", [last.errorCode])}`, last.ok ? "success" : "error");
+  }
 }
 
 $("#saveOrganizationKnowledgeBase").addEventListener("click", async () => {
@@ -96,6 +149,7 @@ $("#saveOrganizationKnowledgeBase").addEventListener("click", async () => {
 });
 
 $("#connectionMode").addEventListener("change", renderMode);
+$("#privacyMode").addEventListener("change", renderPrivacyPreview);
 
 $("#emailProtection").addEventListener("change", async (event) => {
   if (event.target.checked) {
@@ -105,7 +159,7 @@ $("#emailProtection").addEventListener("change", async (event) => {
     await chrome.permissions.remove({ origins: EMAIL_ORIGINS });
   }
   await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SETTINGS", settings: { emailProtection: event.target.checked } });
-  await chrome.runtime.sendMessage({ type: "AEGIS_REFRESH_SCRIPTS" });
+  await chrome.runtime.sendMessage({ type: "AEGIS_REFRESH_SCRIPTS", resumePaused: event.target.checked });
   status(t(event.target.checked ? "emailProtectionEnabled" : "emailProtectionDisabled"), "success");
 });
 
@@ -117,7 +171,7 @@ $("#webProtection").addEventListener("change", async (event) => {
     await chrome.permissions.remove({ origins: WEB_ORIGINS });
   }
   await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SETTINGS", settings: { webProtection: event.target.checked } });
-  await chrome.runtime.sendMessage({ type: "AEGIS_REFRESH_SCRIPTS" });
+  await chrome.runtime.sendMessage({ type: "AEGIS_REFRESH_SCRIPTS", resumePaused: event.target.checked });
   status(t(event.target.checked ? "webProtectionEnabled" : "webProtectionDisabled"), "success");
 });
 
@@ -138,6 +192,7 @@ $("#removeGatewayToken").addEventListener("click", () => void saveSecret("gatewa
 
 $("#saveSettings").addEventListener("click", async () => {
   const next = selectedSettings();
+  if (!validateContentConsent(next)) return;
   try {
     const hasPermission = await requestProviderPermission(next);
     if (!hasPermission && next.jevEnabled) {
@@ -149,19 +204,28 @@ $("#saveSettings").addEventListener("click", async () => {
     if (!saved?.ok) throw new Error("SETTINGS_SAVE_FAILED");
     await chrome.runtime.sendMessage({ type: "AEGIS_REFRESH_SCRIPTS" });
     status(t(next.jevEnabled ? "settingsSavedJev" : "settingsSavedLocal"), "success");
+    await refreshDiagnostic();
   } catch { status(t("settingsSaveFailed"), "error"); }
 });
 
 $("#testConnection").addEventListener("click", async () => {
+  const button = $("#testConnection");
   const config = selectedSettings();
   if (!config.jevEnabled) { status(t("enableJevToTest"), "error"); return; }
-  const permission = await requestProviderPermission(config);
-  if (!permission) { status(t("providerPermissionMissing"), "error"); return; }
-  await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SETTINGS", settings: config });
-  status(t("sendingSyntheticState"));
-  const result = await chrome.runtime.sendMessage({ type: "AEGIS_TEST_JEV" });
-  if (result?.ok) status(t("connectionValidated", [result.model]), "success");
-  else status(t("connectionFailed", [result?.errorCode ?? t("unknownErrorCode")]), "error");
+  if (!validateContentConsent(config)) return;
+  button.disabled = true;
+  try {
+    const permission = await requestProviderPermission(config);
+    if (!permission) { status(t("providerPermissionMissing"), "error"); return; }
+    const saved = await chrome.runtime.sendMessage({ type: "AEGIS_SAVE_SETTINGS", settings: config });
+    if (!saved?.ok) { status(t("settingsSaveFailed"), "error"); return; }
+    status(t("sendingSyntheticState"));
+    const result = await chrome.runtime.sendMessage({ type: "AEGIS_TEST_JEV" });
+    if (result?.ok) status(t("connectionValidated", [result.model]), "success");
+    else status(connectionErrorText(result?.errorCode, t), "error");
+    await refreshDiagnostic();
+  } catch { status(t("diagnosticUnavailable"), "error"); }
+  finally { button.disabled = false; }
 });
 
 void load();

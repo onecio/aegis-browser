@@ -39,22 +39,32 @@ jobs:
         run: |
           $artifactDirectory = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview'
           New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
-          $archive = Join-Path $artifactDirectory 'aegis-browser-0.2.0-preview1.zip'
+          $packageVersion = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
+          $archiveName = "aegis-browser-$packageVersion-preview.zip"
+          $archive = Join-Path $artifactDirectory $archiveName
           Compress-Archive -Path 'dist/*' -DestinationPath $archive -CompressionLevel Optimal
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  aegis-browser-0.2.0-preview1.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
+          "$hash  $archiveName" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
           Copy-Item -LiteralPath 'dist/aegis.spdx.json' -Destination $artifactDirectory
 
       - name: Smoke test extracted install package on live DOM
         shell: pwsh
         run: |
           $artifactDirectory = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview'
-          $archive = Join-Path $artifactDirectory 'aegis-browser-0.2.0-preview1.zip'
+          $packageVersion = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
+          $archiveName = "aegis-browser-$packageVersion-preview.zip"
+          $archive = Join-Path $artifactDirectory $archiveName
           $unpacked = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview-unpacked'
           Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
           $env:AEGIS_EXTENSION_PATH = $unpacked
           node scripts/smoke-live-dom.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect synthetic validation evidence
+        shell: pwsh
+        run: |
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP 'aegis-browser-preview'
+          Copy-Item -Path 'release/evolution-0.3.0/*' -Destination $artifactDirectory
 
       - name: Upload installable preview and SPDX software bill of materials
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

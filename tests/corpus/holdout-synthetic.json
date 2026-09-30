@@ -1,0 +1,657 @@
+{
+  "version": 1,
+  "provenance": "Cenários sintéticos elaborados antes da primeira execução e posteriormente usados para correções. São regressão sintética, não holdout independente. Sem mensagens pessoais ou prova de eficácia em produção.",
+  "split": "regression-after-initial-evaluation",
+  "cases": [
+    {
+      "id": "e01",
+      "group": "routine-pt",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Ata da reunião",
+        "bodyText": "Segue a ata da reunião de terça-feira. Revise a agenda e confirme presença.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e02",
+      "group": "routine-en",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Invoice for services",
+        "bodyText": "Your invoice for September is attached for the agreed services. Contact the vendor for questions.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e03",
+      "group": "marketing",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Novidades do produto",
+        "bodyText": "Nosso material gratuito sobre privacidade está disponível. Você pode cancelar inscrição quando desejar.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e04",
+      "group": "bulk-controls",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Weekly digest",
+        "bodyText": "Read this weekly product summary. Unsubscribe from updates in your account settings.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e05",
+      "group": "authentication-doc",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Password guidance",
+        "bodyText": "Never share your password or authentication code. Sign in only through the normal service portal.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e06",
+      "group": "payment-neutral",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Calendário de pagamentos",
+        "bodyText": "O calendário de pagamento de fornecedores já foi aprovado. Não houve alteração de dados bancários.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e07",
+      "group": "urgent-neutral",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Urgent meeting",
+        "bodyText": "Urgent project meeting at 10 am. We will review the release schedule.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e08",
+      "group": "legitimate-login",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Acesso ao portal",
+        "bodyText": "Entre no portal da empresa para consultar seu resumo mensal.",
+        "qrScanStatus": "no-images",
+        "links": [
+          {
+            "href": "https://example.test/login",
+            "visibleText": "https://example.test/login"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e09",
+      "group": "link-independent",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Referências",
+        "bodyText": "Security training: never share your password. Read the examples and reference sources.",
+        "qrScanStatus": "no-images",
+        "links": [
+          {
+            "href": "https://external.example/source",
+            "visibleText": "https://reference.example/source",
+            "contextText": "Reference source under discussion"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e10",
+      "group": "credential-lure",
+      "surface": "email",
+      "category": "phishing",
+      "expected": "HIGH",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Verificar acesso",
+        "bodyText": "Confirme sua senha imediatamente ou sua conta será suspensa.",
+        "qrScanStatus": "no-images",
+        "links": [
+          {
+            "href": "https://collector.example/login",
+            "visibleText": "https://login.microsoft.com",
+            "contextText": "Confirme sua senha imediatamente ou sua conta será suspensa."
+          }
+        ]
+      }
+    },
+    {
+      "id": "e11",
+      "group": "credential-lure-en",
+      "surface": "email",
+      "category": "phishing",
+      "expected": "HIGH",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Account security",
+        "bodyText": "Enter your password now to verify your account.",
+        "qrScanStatus": "no-images",
+        "links": [
+          {
+            "href": "https://collector.example/account",
+            "visibleText": "https://accounts.google.com",
+            "contextText": "Enter your password now to verify your account."
+          }
+        ]
+      }
+    },
+    {
+      "id": "e12",
+      "group": "link-conflict",
+      "surface": "email",
+      "category": "link",
+      "expected": "REVIEW",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Confira a origem",
+        "bodyText": "O endereço exibido deve corresponder ao destino escolhido para abrir a página.",
+        "qrScanStatus": "no-images",
+        "links": [
+          {
+            "href": "https://different.example/page",
+            "visibleText": "https://service.example/page"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e13",
+      "group": "attachment-deceptive",
+      "surface": "email",
+      "category": "attachment",
+      "expected": "REVIEW",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Arquivo da reunião",
+        "bodyText": "O arquivo chama-se relatorio.pdf.exe. Revise antes de executar qualquer arquivo recebido.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e14",
+      "group": "clickfix-pt",
+      "surface": "email",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Verificação humana",
+        "bodyText": "Para verificar que você é humano, pressione Windows + R, cole o comando PowerShell e pressione Enter.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e15",
+      "group": "clickfix-en",
+      "surface": "email",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Human verification",
+        "bodyText": "To verify you are human, open PowerShell, paste the command and press Enter.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "e16",
+      "group": "clickfix-report",
+      "surface": "email",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "senderAddress": "desk@example.test",
+        "subject": "Relato de incidente",
+        "bodyText": "Exemplo de ataque: para verificar que você é humano, pressione Windows + R, cole o comando PowerShell e pressione Enter. Nunca execute comandos desse tipo.",
+        "qrScanStatus": "no-images",
+        "links": []
+      }
+    },
+    {
+      "id": "w01",
+      "group": "routine-article",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Artigo informativo sobre leitura segura de mensagens e navegação com atenção às fontes.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w02",
+      "group": "password-security",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Never share your password. Use a password manager and review your authentication settings.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w03",
+      "group": "local-login",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Sign in to view your project workspace using your existing account.",
+        "forms": [
+          {
+            "action": "https://example.test/session",
+            "hasPassword": true,
+            "hasCredentialField": true
+          }
+        ],
+        "links": []
+      }
+    },
+    {
+      "id": "w04",
+      "group": "federated-login",
+      "surface": "web",
+      "category": "credential-exposure",
+      "expected": "HIGH",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Enter your password here to verify your account.",
+        "forms": [
+          {
+            "action": "https://collector.example/session",
+            "hasPassword": true,
+            "hasCredentialField": true
+          }
+        ],
+        "links": []
+      }
+    },
+    {
+      "id": "w05",
+      "group": "insecure-login",
+      "surface": "web",
+      "category": "credential-exposure",
+      "expected": "HIGH",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Use your credentials to access the requested documents.",
+        "forms": [
+          {
+            "action": "http://example.test/session",
+            "hasPassword": true,
+            "hasCredentialField": true
+          }
+        ],
+        "links": []
+      }
+    },
+    {
+      "id": "w06",
+      "group": "lookalike-login",
+      "surface": "web",
+      "category": "phishing",
+      "expected": "HIGH",
+      "url": "https://micros0ft-login.example/check",
+      "input": {
+        "title": "Microsoft account verification",
+        "text": "Microsoft account verification. Enter your password to confirm access.",
+        "forms": [
+          {
+            "action": "https://micros0ft-login.example/session",
+            "hasPassword": true,
+            "hasCredentialField": true
+          }
+        ],
+        "links": []
+      }
+    },
+    {
+      "id": "w07",
+      "group": "clickfix-pt",
+      "surface": "web",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Para verificar que você é humano, pressione Windows + R, cole o comando PowerShell e pressione Enter.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w08",
+      "group": "clickfix-en",
+      "surface": "web",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "To verify you are human, open PowerShell, paste the command and press Enter.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w09",
+      "group": "it-support",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "For legitimate IT support, open PowerShell, paste the signed diagnostic command and press Enter to review the system status.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w10",
+      "group": "clickfix-report",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Incident report: to verify you are human, open PowerShell, paste the command and press Enter. Do not run these commands.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w11",
+      "group": "article-other-link",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "A security tutorial discusses passwords and lists reference materials.",
+        "forms": [],
+        "links": [
+          {
+            "href": "https://outside.example/reference",
+            "visibleText": "https://source.example/reference",
+            "contextText": "An unrelated reference source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "w12",
+      "group": "marketing",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Curso gratuito de programação. Confira a agenda e faça a inscrição quando desejar.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w13",
+      "group": "financial-neutral",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Este artigo apresenta os tipos de transferência bancária e pagamento por PIX, sem pedir qualquer ação do leitor.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w14",
+      "group": "routine-admin",
+      "surface": "web",
+      "category": "benign",
+      "expected": "NONE",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Abra o terminal para verificar a versão de sua ferramenta de desenvolvimento. Leia a documentação do fornecedor.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w15",
+      "group": "clickfix-split",
+      "surface": "web",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Security verification\n\nOpen PowerShell\n\nPaste the command and press Enter to verify you are human.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "w16",
+      "group": "clickfix-bypass",
+      "surface": "web",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "url": "https://example.test/info",
+      "input": {
+        "title": "Informação",
+        "text": "Educational demonstration. Do not run arbitrary commands.\n\nTo verify you are human, open PowerShell, paste the command and press Enter.",
+        "forms": [],
+        "links": []
+      }
+    },
+    {
+      "id": "s01",
+      "group": "routine-search",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "Documentação oficial",
+        "snippet": "Informações de referência sobre redes e infraestrutura.",
+        "href": "https://example.test/docs"
+      }
+    },
+    {
+      "id": "s02",
+      "group": "login-search",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "Google Account",
+        "snippet": "Sign in to your account using your normal Google credentials.",
+        "href": "https://accounts.google.com/"
+      }
+    },
+    {
+      "id": "s03",
+      "group": "password-guidance",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "Microsoft password security",
+        "snippet": "Learn to protect your Microsoft password and account access.",
+        "href": "https://support.microsoft.com/"
+      }
+    },
+    {
+      "id": "s04",
+      "group": "lookalike-search",
+      "surface": "search",
+      "category": "phishing",
+      "expected": "HIGH",
+      "input": {
+        "title": "Microsoft account verification",
+        "snippet": "Enter your password to confirm your account immediately.",
+        "href": "https://micros0ft-login.example/verify"
+      }
+    },
+    {
+      "id": "s05",
+      "group": "lookalike-google",
+      "surface": "search",
+      "category": "phishing",
+      "expected": "HIGH",
+      "input": {
+        "title": "Google account recovery",
+        "snippet": "Verify your account by entering your password.",
+        "href": "https://g00gle-security.example/check"
+      }
+    },
+    {
+      "id": "s06",
+      "group": "clickfix-result",
+      "surface": "search",
+      "category": "clickfix",
+      "expected": "HIGH",
+      "input": {
+        "title": "Security verification",
+        "snippet": "To verify you are human, open PowerShell, paste the command and press Enter.",
+        "href": "https://captcha.example/verify"
+      }
+    },
+    {
+      "id": "s07",
+      "group": "clickfix-article",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "Incident report",
+        "snippet": "Incident report: to verify you are human, open PowerShell, paste the command and press Enter. Do not run these commands.",
+        "href": "https://security.example/analysis"
+      }
+    },
+    {
+      "id": "s08",
+      "group": "it-documentation",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "PowerShell reference",
+        "snippet": "Learn to run signed administrative commands in your authorized development environment.",
+        "href": "https://learn.microsoft.com/"
+      }
+    },
+    {
+      "id": "s09",
+      "group": "ordinary-promotion",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "Curso gratuito",
+        "snippet": "Aprenda programação com um curso gratuito e uma agenda de aulas públicas.",
+        "href": "https://education.example/"
+      }
+    },
+    {
+      "id": "s10",
+      "group": "new-domain",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "New service portal",
+        "snippet": "A newly introduced service portal with a public description of its features.",
+        "href": "https://newservice.example/"
+      }
+    },
+    {
+      "id": "s11",
+      "group": "brand-article",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "Google privacy discussion",
+        "snippet": "An independent article discussing Google services and password security.",
+        "href": "https://journal.example/article"
+      }
+    },
+    {
+      "id": "s12",
+      "group": "finance-search",
+      "surface": "search",
+      "category": "benign",
+      "expected": "NONE",
+      "input": {
+        "title": "PIX e pagamentos",
+        "snippet": "Referência sobre o funcionamento de transferências financeiras, sem pedido de pagamento.",
+        "href": "https://reference.example/finance"
+      }
+    }
+  ]
+}

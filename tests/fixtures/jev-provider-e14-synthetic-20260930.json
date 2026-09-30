@@ -1,0 +1,160 @@
+{
+  "model": "jev-1.13.0",
+  "answers": {
+    "urgency": {
+      "type": "noul",
+      "noul": 0.07
+    },
+    "credential_request": {
+      "type": "noul",
+      "noul": 0.06
+    },
+    "process_bypass": {
+      "type": "noul",
+      "noul": 0.07
+    },
+    "financial_action": {
+      "type": "noul",
+      "noul": 0.05
+    },
+    "clickfix_instruction": {
+      "type": "noul",
+      "noul": 0.5
+    },
+    "classification": {
+      "type": "choice",
+      "choice": "SUSPICIOUS",
+      "confidence": 0.49,
+      "probabilities": {
+        "UNKNOWN": 0.08,
+        "BENIGN": 0.16,
+        "BEC_LIKELY": 0,
+        "PHISHING_LIKELY": 0.13,
+        "QUISHING_LIKELY": 0.01,
+        "MARKETING": 0,
+        "SPAM": 0.07,
+        "SUSPICIOUS": 0.54,
+        "SPEAR_PHISHING_LIKELY": 0,
+        "CREDENTIAL_PHISHING_LIKELY": 0.01
+      }
+    },
+    "social_engineering_intensity": {
+      "type": "score",
+      "score": 1.51,
+      "confidence": 0.18,
+      "legend": {
+        "0": "No persuasive pressure; informational or routine content.",
+        "1": "Ordinary persuasion or a routine request without unusual pressure.",
+        "2": "An unusual request or authority claim creates some pressure to act.",
+        "3": "Fear, authority, secrecy, or bypass language strongly pressures the recipient.",
+        "4": "Several coercive tactics converge to force action or evade normal safeguards."
+      },
+      "probabilities": {
+        "0": 0.25,
+        "1": 0.23,
+        "2": 0.28,
+        "3": 0.23,
+        "4": 0.01
+      }
+    },
+    "credential_risk": {
+      "type": "score",
+      "score": 0.47,
+      "confidence": 0.61,
+      "legend": {
+        "0": "No authentication action or credential is requested.",
+        "1": "Authentication is mentioned, but no account action is requested.",
+        "2": "The recipient is asked to sign in or verify an account, with no secret explicitly requested.",
+        "3": "The content asks the recipient to enter a password, one-time code, or other authentication secret.",
+        "4": "The content asks the recipient to send secrets to a person or to bypass normal authentication safeguards."
+      },
+      "probabilities": {
+        "0": 0.81,
+        "1": 0.06,
+        "2": 0.05,
+        "3": 0.01,
+        "4": 0.07
+      }
+    },
+    "financial_fraud_risk": {
+      "type": "score",
+      "score": 0,
+      "confidence": 1,
+      "legend": {
+        "0": "No payment, transfer, invoice, or financial account action is requested.",
+        "1": "Financial information is mentioned without asking for a change or transfer.",
+        "2": "A routine payment or invoice action is requested without unusual pressure or changed details.",
+        "3": "The content requests a new payment, changed payment details, or an unusual transfer.",
+        "4": "An unusual or changed financial action is combined with impersonation, urgency, secrecy, or process bypass."
+      },
+      "probabilities": {
+        "0": 1,
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      }
+    },
+    "impersonation_risk": {
+      "type": "score",
+      "score": 0.46,
+      "confidence": 0.62,
+      "legend": {
+        "0": "No organization or person is represented as the sender.",
+        "1": "An organization is mentioned without a claim to represent it.",
+        "2": "The sender claims to represent an organization, with no supplied identity conflict.",
+        "3": "The claimed organization conflicts with the supplied sender or domain features.",
+        "4": "An identity conflict converges with a credential, payment, or safeguard-bypass request."
+      },
+      "probabilities": {
+        "0": 0.86,
+        "1": 0.01,
+        "2": 0.02,
+        "3": 0.01,
+        "4": 0.1
+      }
+    },
+    "urgency_manipulation": {
+      "type": "score",
+      "score": 0.03,
+      "confidence": 0.97,
+      "legend": {
+        "0": "No time pressure or threatened consequence is expressed.",
+        "1": "A neutral date or ordinary deadline is stated without pressure.",
+        "2": "A deadline encourages action, but no threat or unusual pressure is used.",
+        "3": "Urgency or fear is tied to account access, payment, or another consequential action.",
+        "4": "Immediate threats or penalties are used to force action or prevent independent verification."
+      },
+      "probabilities": {
+        "0": 1,
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      }
+    },
+    "semantic_suspicion": {
+      "type": "score",
+      "score": 1.29,
+      "confidence": 0.73,
+      "legend": {
+        "0": "The supplied content is routine and contains no meaningful suspicious request.",
+        "1": "One atypical detail appears, with a plausible benign interpretation.",
+        "2": "The content is ambiguous or contains a notable request that merits review.",
+        "3": "Several independent suspicious patterns appear to converge.",
+        "4": "Strong phishing, credential-harvesting, impersonation, or financial-manipulation patterns converge."
+      },
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.72,
+        "2": 0.22,
+        "3": 0.04,
+        "4": 0
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 1770,
+    "output_tokens": 320
+  }
+}

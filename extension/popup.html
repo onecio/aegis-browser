@@ -14,6 +14,11 @@
     </header>
     <main class="content">
       <div class="mode-row"><span id="mode" class="mode-tag" data-i18n="modeLocal">AEGIS LOCAL</span><span id="engine" class="status-dot" data-i18n="engineAvailableLocal">Proteção local disponível</span></div>
+      <section class="operation-card" aria-labelledby="monitorTitle">
+        <div class="operation-heading"><h2 id="monitorTitle" data-i18n="monitorNotRunning">Monitoramento não iniciado</h2><button id="toggleMonitor" class="button compact" type="button" hidden data-i18n="monitorPauseAction">Pausar nesta aba</button></div>
+        <p id="monitorDetail" class="note" data-i18n="monitorNotRunningCopy">A análise manual permanece disponível.</p>
+        <p id="monitorCoverage" class="note"></p>
+      </section>
       <section id="summary" class="panel-card" aria-live="polite">
         <div class="risk"><div id="riskIcon" class="risk-icon unknown">?</div><div><div id="riskTitle" class="risk-title" data-i18n="notAnalyzedTitle">Análise ainda não executada</div><div id="riskCopy" class="risk-copy" data-i18n="notAnalyzedCopy">Analise a página atual ou verifique um endereço sem abri-lo.</div></div></div>
         <div id="findings" hidden></div>

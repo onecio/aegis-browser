@@ -1,5 +1,6 @@
+import { queryMonitor, summarizeConnection, summarizeMonitor } from "./operational-status.js";
 import { createI18n } from "../i18n.js";
-import { localizeFindingDetail, localizeFindingLocation } from "./finding-copy.js";
+import { localizeFindingDetail, localizeFindingLocation, localizeObservedEvidence } from "./finding-copy.js";
 
 const { t, localizeDocument } = createI18n(chrome.i18n);
 localizeDocument(document);
@@ -28,10 +29,10 @@ const jevChoiceNames = {
 };
 const jevNoulNames = {
   urgency: t("noulUrgency"), credential_request: t("noulCredentialRequest"),
-  process_bypass: t("noulProcessBypass"), financial_action: t("noulFinancialAction")
+  process_bypass: t("noulProcessBypass"), financial_action: t("noulFinancialAction"), clickfix_instruction: t("noulClickFix")
 };
 const surfaceNames = {
-  email: t("surfaceOpenedEmail"), "email-inbox": t("surfaceInbox"), web: t("surfaceWebPage"), url: t("surfaceManualUrl")
+  email: t("surfaceOpenedEmail"), "email-inbox": t("surfaceInbox"), web: t("surfaceWebPage"), url: t("surfaceManualUrl"), "search-result": t("surfaceSearchResults")
 };
 const $ = (selector) => document.querySelector(selector);
 let currentAnalysisId = null;
@@ -123,7 +124,7 @@ function renderJev(decision) {
 function render(decision) {
   const state = stateCopy[decision?.state] ? decision.state : "UNKNOWN";
   $("#riskIcon").className = `risk-icon ${state.toLowerCase()}`;
-  $("#riskIcon").textContent = ({ GREEN: "✓", YELLOW: "!", RED: "!", UNKNOWN: "?" })[state];
+  $("#riskIcon").textContent = ({ GREEN: "L", YELLOW: "!", RED: "!", UNKNOWN: "?" })[state];
   $("#riskTitle").textContent = stateCopy[state][0];
   $("#riskCopy").textContent = stateCopy[state][1];
   const engine = decision?.engineStatus ?? { local: "active", jev: "off" };
@@ -144,7 +145,10 @@ function render(decision) {
       const item = document.createElement("div"); item.className = "finding";
       const title = document.createElement("strong"); title.textContent = localizeFindingDetail(finding, t);
       const detail = document.createElement("small"); detail.textContent = `${vectorNames[finding.category] ?? t("genericSignal")} · ${localizeFindingLocation(finding, t) || t("analysisLocation")} · ${t(finding.source === "jev" ? "findingSourceJev" : "findingSourceLocal")}`;
-      item.append(title, detail); findings.append(item);
+      item.append(title, detail);
+      const observed = localizeObservedEvidence(finding, t);
+      if (observed) { const evidence = document.createElement("small"); evidence.textContent = observed; item.append(evidence); }
+      findings.append(item);
     }
   }
   const vectors = $("#vectors");
@@ -156,6 +160,9 @@ function render(decision) {
     const level = document.createElement("div"); level.className = "metric-value"; level.textContent = value ? t("vectorObservedLevel", [value]) : t("vectorNoSignal");
     metric.append(name, level); vectors.append(metric);
   }
+  const statusKeys = { completed: "analysisCompleted", pending: "analysisPending", insufficient: "analysisInsufficient", failure: "analysisFailure", "not-analyzable": "analysisNotAnalyzable" };
+  const statusCopy = t(statusKeys[decision?.analysisStatus] ?? (decision?.coverage?.sufficient ? "analysisCompleted" : "analysisInsufficient"));
+  $("#analysisCoverage").textContent = [statusCopy, ...(decision?.coverage?.reasons ?? []).slice(0, 4)].join(" · ");
   renderContext(decision);
   renderJev(decision);
   renderFeedback(decision);
@@ -208,28 +215,57 @@ async function refreshDashboard() {
   $("#dashboardStatus").textContent = t("dashboardStoredLocally");
 }
 
+let currentMonitor = null;
+let refreshRevision = 0;
+let monitoredTabId = null;
+
 async function refresh() {
+  const revision = ++refreshRevision;
   const tab = await currentTab();
-  if (!Number.isInteger(tab?.id)) return;
-  const result = await chrome.runtime.sendMessage({ type: "AEGIS_GET_CURRENT_ANALYSIS", tabId: tab.id });
+  if (revision !== refreshRevision) return;
+  if (!Number.isInteger(tab?.id)) { monitoredTabId = null; render({ state: "UNKNOWN", findings: [], riskVector: {}, engineStatus: { local: "active", jev: "off" } }); return; }
+  monitoredTabId = tab.id;
+  const [result, config, monitor] = await Promise.all([
+    chrome.runtime.sendMessage({ type: "AEGIS_GET_CURRENT_ANALYSIS", tabId: tab.id }),
+    chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" }), queryMonitor(tab.id)
+  ]);
+  if (revision !== refreshRevision) return;
   if (result?.analysis) render(result.analysis);
   else render({ state: "UNKNOWN", findings: [], riskVector: {}, engineStatus: { local: "active", jev: "off" } });
+  currentMonitor = monitor;
+  const summary = summarizeMonitor(monitor, t);
+  $("#monitorTitle").textContent = summary.title;
+  $("#monitorDetail").textContent = summary.detail;
+  $("#toggleMonitor").hidden = !summary.canPause;
+  $("#toggleMonitor").textContent = t(monitor?.monitoring ? "monitorPauseAction" : "monitorResumeAction");
+  $("#connectionDiagnostic").textContent = summarizeConnection(config, t).text;
 }
 
-$("#analyze").addEventListener("click", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (!Number.isInteger(tab?.id)) return;
+$("#toggleMonitor").addEventListener("click", async () => {
+  const tab = await currentTab();
+  if (!Number.isInteger(tab?.id) || tab.id !== monitoredTabId || !summarizeMonitor(currentMonitor, t).canPause) return;
+  const button = $("#toggleMonitor");
+  button.disabled = true;
   try {
-    try { await chrome.tabs.sendMessage(tab.id, { type: "AEGIS_REQUEST_SCAN", userRequested: true }); }
-    catch {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-      await chrome.tabs.sendMessage(tab.id, { type: "AEGIS_REQUEST_SCAN", userRequested: true });
-    }
+    await chrome.tabs.sendMessage(tab.id, { type: currentMonitor.monitoring ? "AEGIS_STOP_MONITORING" : "AEGIS_RESUME_MONITORING" });
+    await refresh();
+  } catch { $("#monitorDetail").textContent = t("monitorChangeFailed"); }
+  finally { button.disabled = false; }
+});
+
+$("#analyze").addEventListener("click", async () => {
+  const button = $("#analyze");
+  button.disabled = true;
+  try {
+    const prepared = await chrome.runtime.sendMessage({ type: "AEGIS_ANALYZE_ACTIVE_TAB" });
+    if (!prepared?.ok || !Number.isInteger(prepared.tabId)) throw new Error("PAGE_UNAVAILABLE");
+    const scanned = await chrome.tabs.sendMessage(prepared.tabId, { type: "AEGIS_REQUEST_SCAN", userRequested: true, continuousProtection: prepared.continuousProtection });
+    if (!scanned?.ok) { $("#riskCopy").textContent = t("analysisIncomplete"); return; }
     await refresh();
   } catch {
     $("#riskTitle").textContent = t("pageUnavailableTitle");
     $("#riskCopy").textContent = t("pageUnavailableCopy");
-  }
+  } finally { button.disabled = false; }
 });
 
 $("#feedbackActions").addEventListener("click", async (event) => {
@@ -262,6 +298,22 @@ $("#clearDashboard").addEventListener("click", async () => {
 chrome.storage.onChanged.addListener((_changes, area) => {
   if (area === "session") void refresh();
   if (area === "local") void refreshDashboard();
+});
+
+function changedTab() {
+  refreshRevision += 1;
+  currentMonitor = null;
+  currentAnalysisId = null;
+  $("#toggleMonitor").hidden = true;
+  $("#monitorTitle").textContent = t("monitorNotRunning");
+  $("#monitorDetail").textContent = t("monitorLoading");
+  render({ state: "UNKNOWN", findings: [], riskVector: {}, engineStatus: { local: "active", jev: "off" } });
+  void refresh();
+}
+
+chrome.tabs.onActivated.addListener(changedTab);
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (tabId === monitoredTabId && (change.url || change.status === "loading")) changedTab();
 });
 
 void refresh();

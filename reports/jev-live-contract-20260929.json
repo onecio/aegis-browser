@@ -1,0 +1,15 @@
+{
+  "test": "minimal-live-systemone-contract",
+  "testedAt": "2026-09-30 00:35:47 UTC",
+  "transport": "direct-byok",
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "privacyMode": "STRICT",
+  "data": "synthetic-public-features-only",
+  "status": "connected",
+  "errorCode": null,
+  "model": "jev-1.13.0",
+  "validatedQuestions": 12,
+  "usage": { "input_tokens": 1770, "output_tokens": 318 },
+  "proves": ["configured-environment-credential-authentication", "live-provider-response", "twelve-typed-question-contract"],
+  "doesNotProve": ["real-mailbox-efficacy", "production-gateway-deployment", "calibrated-accuracy", "all-browser-installations"]
+}

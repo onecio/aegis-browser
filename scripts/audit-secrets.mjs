@@ -9,8 +9,9 @@ const skippedDirectories = new Set([".git", "coverage", "dist", "node_modules", 
 const patterns = [
   {
     name: "named API credential",
-    regex: /\b(TYPESAFE_API_KEY|(?:api[_-]?(?:key|secret)|client[_-]?secret|access[_-]?token|refresh[_-]?token|secret[_-]?key|private[_-]?key))\s*[:=]\s*["']?([A-Za-z0-9._~+/=-]{24,})["']?/gi,
-    valueIndex: 2
+    regex: /\b(TYPESAFE_API_KEY|(?:api[_-]?(?:key|secret)|client[_-]?secret|access[_-]?token|refresh[_-]?token|secret[_-]?key|private[_-]?key))\s*[:=]\s*(["']?)([A-Za-z0-9._~+/=-]{24,})\2/gi,
+    valueIndex: 3,
+    quoteIndex: 2
   },
   {
     name: "bearer credential",
@@ -43,6 +44,8 @@ export function findSecretIndicators(source) {
   const findings = new Set();
   for (const pattern of patterns) {
     for (const match of source.matchAll(pattern.regex)) {
+      // A runtime environment lookup is code, not a literal credential.
+      if (pattern.quoteIndex && !match[pattern.quoteIndex] && /^process\.env\.[A-Z0-9_]+$/.test(match[pattern.valueIndex])) continue;
       if (looksLikeCredential(match[pattern.valueIndex])) findings.add(pattern.name);
     }
   }

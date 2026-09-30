@@ -1,4 +1,6 @@
-# AEGIS Browser 0.2.0 — instalação e homologação preliminar
+# AEGIS Browser — instalação e homologação preliminar
+
+Para a candidata 0.3.0, consulte primeiro [evolução, configuração e evidências](EVOLUCAO_0.3.0.md). As referências a resultados remotos 0.2.0 abaixo são históricas e não comprovam a candidata.
 
 Este pacote é uma prévia técnica para instalação manual e testes controlados. Não é publicação em loja nem comprovação de eficácia contra phishing. Use um perfil de navegador separado e dados de teste sem informação pessoal ou corporativa.
 

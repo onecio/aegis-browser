@@ -25,7 +25,7 @@ async function fixture(t, options = {}) {
   };
   let upstreamCalls = 0;
   let capturedRequest;
-  const defaultFetchImpl = async () => new Response(JSON.stringify({ model: "jev-test-model", answers: { status: { type: "noul", noul: 0.1 } }, usage: { input_tokens: 8, output_tokens: 2 } }), { status: 200, headers: { "content-type": "application/json" } });
+  const defaultFetchImpl = async () => new Response(JSON.stringify({ model: "jev-test-model", answers: validProviderAnswers(), usage: { input_tokens: 8, output_tokens: 2 } }), { status: 200, headers: { "content-type": "application/json" } });
   const fetchImpl = async (url, init) => {
     upstreamCalls += 1;
     capturedRequest = { url, headers: init.headers, body: JSON.parse(init.body) };
@@ -220,4 +220,19 @@ test("production configuration fails closed without exact origins and tenant sco
   assert.throws(() => loadConfig({ ...env, AEGIS_GATEWAY_ALLOWED_ORIGINS: "chrome-extension://extension-id", AEGIS_GATEWAY_ALLOWED_TENANTS: "" }), /wildcard tenancy/);
   assert.throws(() => loadConfig({ ...env, AEGIS_GATEWAY_ALLOWED_ORIGINS: "chrome-extension://extension-id", AEGIS_GATEWAY_ALLOWED_TENANTS: "org-one", AEGIS_GATEWAY_JWKS_URL: "https://identity.example.org/keys?access_token=secret" }), /without query or fragment/);
   assert.throws(() => loadConfig({ ...env, AEGIS_GATEWAY_ALLOWED_ORIGINS: "chrome-extension://extension-id", AEGIS_GATEWAY_ALLOWED_TENANTS: "org-one", AEGIS_GATEWAY_RPM: "NaN" }), /positive integer/);
+});
+
+test("gateway accepts an exact Chrome extension origin without treating its opaque URL origin as invalid", () => {
+  const origin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+  const env = {
+    AEGIS_GATEWAY_ISSUER: "https://identity.example.org/",
+    AEGIS_GATEWAY_JWKS_URL: "https://identity.example.org/keys",
+    TYPESAFE_API_KEY: "a-realistic-secret-key-value",
+    AEGIS_GATEWAY_ALLOWED_ORIGINS: origin,
+    AEGIS_GATEWAY_ALLOWED_TENANTS: "org-one"
+  };
+  assert.ok(loadConfig(env).allowedOrigins.has(origin));
+  for (const invalid of [`${origin}/options.html`, `${origin}?extra=1`, "chrome-extension://invalid-id"]) {
+    assert.throws(() => loadConfig({ ...env, AEGIS_GATEWAY_ALLOWED_ORIGINS: invalid }), /exact HTTPS or extension origins/);
+  }
 });
