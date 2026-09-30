@@ -8,20 +8,27 @@
     <script defer src="sidepanel.js"></script>
   </head>
   <body>
-    <header class="topbar"><div class="brand-mark" aria-hidden="true">A</div><div><div class="brand">AEGIS</div><div class="brand-sub" data-i18n="securityCenter">Security Center</div></div><span id="mode" class="badge" style="margin-left:auto" data-i18n="modeLocal">LOCAL</span></header>
+    <header class="topbar"><div class="brand-mark" aria-hidden="true">A</div><div><div class="brand">AEGIS</div><div class="brand-sub" data-i18n="securityCenter">Security Center</div></div><span id="mode" class="badge push-right" data-i18n="modeLocal">LOCAL</span></header>
     <main class="shell">
-      <div class="mode-row"><span class="eyebrow" style="margin:0" data-i18n="currentTabAnalysis">ANÁLISE DA ABA ATUAL</span><span id="engineStatus" class="status-dot" data-i18n="engineLocal">Local</span></div>
+      <div class="mode-row"><span class="eyebrow flush" data-i18n="currentTabAnalysis">ANÁLISE DA ABA ATUAL</span><span id="engineStatus" class="status-dot" data-i18n="engineLocal">Local</span></div>
+      <section class="operation-card" aria-labelledby="monitorTitle">
+        <div class="operation-heading"><h2 id="monitorTitle" data-i18n="monitorNotRunning">Monitoramento não iniciado</h2><button id="toggleMonitor" class="button compact" type="button" hidden data-i18n="monitorPauseAction">Pausar nesta aba</button></div>
+        <p id="monitorDetail" class="note"></p>
+        <p id="monitorCoverage" class="note" data-i18n="monitorCoverageCopy">A extensão observa o conteúdo acessível e carregado.</p>
+        <p id="connectionDiagnostic" class="note"></p>
+      </section>
       <section class="card">
         <div class="risk"><div id="riskIcon" class="risk-icon unknown">?</div><div><div id="riskTitle" class="risk-title" data-i18n="noAnalysisTitle">Sem análise disponível</div><div id="riskCopy" class="risk-copy" data-i18n="noAnalysisCopy">Execute uma análise para ver os sinais observados nesta aba.</div></div></div>
+        <p id="analysisCoverage" class="note" aria-live="polite"></p>
         <div class="actions"><button id="analyze" class="button primary" type="button" data-i18n="analyzePage">Analisar esta página</button></div>
       </section>
-      <section class="card"><div class="eyebrow" style="margin-top:0" data-i18n="indicatorsHeading">INDICADORES</div><div id="findings" class="scroll"><p class="note" data-i18n="noIndicatorsLoaded">Nenhum indicador carregado.</p></div></section>
-      <section class="card"><div class="eyebrow" style="margin-top:0" data-i18n="riskVectorsHeading">VETORES DE RISCO</div><div id="vectors" class="metric-grid"></div></section>
-      <section class="card" id="contextCard" hidden><div class="eyebrow" style="margin-top:0" data-i18n="contextHeading">REMETENTE, DOMÍNIO E LINKS</div><div id="contextDetails" class="scroll" aria-live="polite"></div></section>
-      <section class="card" id="jevJudgmentsCard" hidden><div class="eyebrow" style="margin-top:0" data-i18n="jevJudgmentsHeading">AVALIAÇÕES SEMÂNTICAS · JEV</div><p class="note" data-i18n="jevDisclaimer">Estas são avaliações semânticas, não verificações factuais nem probabilidades de fraude. A concentração descreve a distribuição de cada resposta.</p><div id="jevJudgments" class="scroll" aria-live="polite"></div></section>
-      <section class="card"><div class="eyebrow" style="margin-top:0" data-i18n="recommendationHeading">RECOMENDAÇÃO</div><p id="recommendation" class="note" data-i18n="recommendationDefault">Verifique a origem por um canal independente antes de compartilhar credenciais ou autorizar pagamentos.</p></section>
+      <section class="card"><div class="eyebrow flush-top" data-i18n="indicatorsHeading">INDICADORES</div><div id="findings" class="scroll"><p class="note" data-i18n="noIndicatorsLoaded">Nenhum indicador carregado.</p></div></section>
+      <section class="card"><div class="eyebrow flush-top" data-i18n="riskVectorsHeading">VETORES DE RISCO</div><div id="vectors" class="metric-grid"></div></section>
+      <section class="card" id="contextCard" hidden><div class="eyebrow flush-top" data-i18n="contextHeading">REMETENTE, DOMÍNIO E LINKS</div><div id="contextDetails" class="scroll" aria-live="polite"></div></section>
+      <section class="card" id="jevJudgmentsCard" hidden><div class="eyebrow flush-top" data-i18n="jevJudgmentsHeading">AVALIAÇÕES SEMÂNTICAS · JEV</div><p class="note" data-i18n="jevDisclaimer">Estas são avaliações semânticas, não verificações factuais nem probabilidades de fraude. A concentração descreve a distribuição de cada resposta.</p><div id="jevJudgments" class="scroll" aria-live="polite"></div></section>
+      <section class="card"><div class="eyebrow flush-top" data-i18n="recommendationHeading">RECOMENDAÇÃO</div><p id="recommendation" class="note" data-i18n="recommendationDefault">Verifique a origem por um canal independente antes de compartilhar credenciais ou autorizar pagamentos.</p></section>
       <section class="card" id="feedbackCard" hidden aria-labelledby="feedbackTitle">
-        <div id="feedbackTitle" class="eyebrow" style="margin-top:0" data-i18n="feedbackHeading">FEEDBACK DESTA ANÁLISE</div>
+        <div id="feedbackTitle" class="eyebrow flush-top" data-i18n="feedbackHeading">FEEDBACK DESTA ANÁLISE</div>
         <p class="note" data-i18n="feedbackPrivacy">O feedback fica neste dispositivo, sem vínculo ao conteúdo. Ele não modifica a mensagem no Gmail/Outlook nem altera as regras do AEGIS.</p>
         <div id="feedbackActions" class="actions">
           <button class="button" type="button" data-feedback="useful" data-i18n="feedbackUseful">Esta análise foi útil</button>
@@ -33,7 +40,7 @@
         <p id="feedbackStatus" class="message" aria-live="polite"></p>
       </section>
       <section class="card" aria-labelledby="dashboardTitle">
-        <div id="dashboardTitle" class="eyebrow" style="margin-top:0" data-i18n="dashboardHeading">PAINEL LOCAL · ÚLTIMOS 30 DIAS</div>
+        <div id="dashboardTitle" class="eyebrow flush-top" data-i18n="dashboardHeading">PAINEL LOCAL · ÚLTIMOS 30 DIAS</div>
         <div id="dashboardMetrics" class="metric-grid" aria-live="polite"></div>
         <p id="dashboardStatus" class="note" data-i18n="dashboardPrivacy">Somente contagens locais agregadas; nenhum conteúdo ou indicador de mensagem é armazenado aqui.</p>
         <button id="clearDashboard" class="button subtle" type="button" data-i18n="clearMetrics">Apagar métricas locais</button>

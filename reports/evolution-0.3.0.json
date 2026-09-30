@@ -1,0 +1,340 @@
+{
+  "version": "0.3.0",
+  "generatedAt": "2026-09-30T21:24:57.275Z",
+  "status": "experimental-candidate",
+  "sourceBase": "55894c9dde23507b73dfdb9d81e3a9600966f9bb",
+  "unitTests": {
+    "passed": 127,
+    "failed": 0
+  },
+  "reproducibleBundle": {
+    "files": 15,
+    "sha256": "1061607cd902a9ee341fec5e3a82902f3270e54c8593894710b4849d998bf81e",
+    "excludes": "SPDX generation metadata"
+  },
+  "localRegression": {
+    "n": 44,
+    "matrix": {
+      "NONE": {
+        "NONE": 27,
+        "REVIEW": 1,
+        "HIGH": 0
+      },
+      "REVIEW": {
+        "NONE": 0,
+        "REVIEW": 2,
+        "HIGH": 0
+      },
+      "HIGH": {
+        "NONE": 0,
+        "REVIEW": 0,
+        "HIGH": 14
+      }
+    },
+    "highPrecision": {
+      "numerator": 14,
+      "denominator": 14,
+      "value": 1,
+      "wilson95": [
+        0.7847,
+        1
+      ]
+    },
+    "coveredHighRecall": {
+      "numerator": 14,
+      "denominator": 14,
+      "value": 1,
+      "wilson95": [
+        0.7847,
+        1
+      ]
+    },
+    "benignVisibleFpr": {
+      "numerator": 1,
+      "denominator": 28,
+      "value": 0.0357,
+      "wilson95": [
+        0.0063,
+        0.1771
+      ]
+    },
+    "unknown": 0,
+    "p95LocalMs": 1.94
+  },
+  "jevAblation": {
+    "byMode": {
+      "STRICT": {
+        "attempts": 12,
+        "connected": 12,
+        "errors": 0,
+        "p50InferenceMs": 252.5,
+        "p95InferenceMs": 762.2,
+        "localMatrix": {
+          "NONE": {
+            "NONE": 7,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "REVIEW": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "HIGH": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 5
+          }
+        },
+        "combinedMatrix": {
+          "NONE": {
+            "NONE": 7,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "REVIEW": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "HIGH": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 5
+          }
+        },
+        "semanticStateChanges": 0,
+        "visibleChanges": 0
+      },
+      "ENHANCED": {
+        "attempts": 12,
+        "connected": 12,
+        "errors": 0,
+        "p50InferenceMs": 246.4,
+        "p95InferenceMs": 283.8,
+        "localMatrix": {
+          "NONE": {
+            "NONE": 7,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "REVIEW": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "HIGH": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 5
+          }
+        },
+        "combinedMatrix": {
+          "NONE": {
+            "NONE": 7,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "REVIEW": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 0
+          },
+          "HIGH": {
+            "NONE": 0,
+            "REVIEW": 0,
+            "HIGH": 5
+          }
+        },
+        "semanticStateChanges": 4,
+        "visibleChanges": 0
+      }
+    },
+    "models": [
+      "jev-1.13.0"
+    ],
+    "limits": [
+      "Real provider inference on synthetic inputs; not real mailbox accuracy.",
+      "Selected regression cases were seen during development and are not an independent holdout.",
+      "Enhanced mode shares only authored synthetic text for this experiment; no user messages or browser data were accessed.",
+      "Only code-owned policy determines visible warnings; semantic signals cannot independently produce RED.",
+      "No provider pricing or population-accuracy claims are made."
+    ]
+  },
+  "actualMv3Jev": {
+    "generatedAt": "2026-09-30T21:23:49.546Z",
+    "status": "passed",
+    "actualMv3WorkerInference": true,
+    "model": "jev-1.13.0",
+    "inferenceLatencyMs": 456.6,
+    "providerRequests": [
+      {
+        "origin": "https://api.typesafe.ai",
+        "method": "POST"
+      }
+    ],
+    "providerResponses": [
+      {
+        "origin": "https://api.typesafe.ai",
+        "status": 200
+      }
+    ],
+    "workerStopRestartVerified": true,
+    "sessionCredentialRetainedAcrossWorkerRestart": true,
+    "jevOffClearsCredential": true,
+    "jevOffProviderRequests": 0,
+    "shippingManifestSha256": "10371560b2c52197bf933fb08825df78313c71f9d1cfe93893457a762aa24008",
+    "sourceBundleSha256": {
+      "service-worker.js": "06872e18834c9412026783f813cb8f447e5816da5c3dd4c8f335d0006b2b93e6",
+      "options.js": "f029d10775db32b1b6d5e6791df473292e248b33a2b839888749f3b6bb9ad083",
+      "content.js": "5254d3cf5e3d207913d6848973764a198bdc36cf85347a8ebece0b7cba7054a2",
+      "popup.js": "c7132721105c9dbe33153f6e3c4a91f55ff16a12bd9470dd70c18cb5cf9d5e5e",
+      "sidepanel.js": "d1468efafe72e4bafa0d34314641e19ab739a9ab55acddd69ef6940c0cd005e9"
+    },
+    "provenance": {
+      "profile": "owned temporary Chrome profile",
+      "productionProfile": false,
+      "permissionFixture": "only https://api.typesafe.ai/* predeclared in copied manifest",
+      "nativePermissionPromptValidated": false,
+      "shippingManifestModified": false
+    },
+    "limits": [
+      "One real JEV request executed by the MV3 worker using built-in synthetic STRICT connection-test metadata.",
+      "A copied manifest predeclared the provider host for this contract fixture; native permission prompts and the installed personal browser profile were not tested.",
+      "The browser-session credential survives worker restart and is removed when JEV is disabled; persistence across browser restarts is not offered."
+    ]
+  },
+  "gateway": {
+    "generatedAt": "2026-09-30T11:47:19.774Z",
+    "status": "connected",
+    "model": "jev-1.13.0",
+    "dimensions": [
+      "urgency",
+      "credential_request",
+      "process_bypass",
+      "financial_action",
+      "clickfix_instruction",
+      "classification",
+      "social_engineering_intensity",
+      "credential_risk",
+      "financial_fraud_risk",
+      "impersonation_risk",
+      "urgency_manipulation",
+      "semantic_suspicion"
+    ],
+    "usage": {
+      "input_tokens": 1770,
+      "output_tokens": 326
+    },
+    "gatewayLatencyMs": 343.6,
+    "actualUpstreamRequests": 1,
+    "privacyMode": "STRICT",
+    "identityVerification": "ephemeral RS256 JWT with injected local JWKS resolver",
+    "productionOidcValidated": false,
+    "gates": {
+      "missingJwt": 401,
+      "wrongOrigin": 403,
+      "occupiedCapacity": 503,
+      "upstreamCallsAfterUnauthorizedRequests": 0
+    },
+    "limits": [
+      "Real JEV inference used only authored synthetic metadata; this is not a mailbox-accuracy measurement.",
+      "JWT signature, issuer, audience, tenant, expiry, scope and exact origin were checked using an ephemeral identity fixture; production OIDC deployment was not tested.",
+      "This proof permits one actual provider request and does not persist keys, tokens, state, raw provider answers or private content."
+    ]
+  },
+  "cli": {
+    "generatedAt": "2026-09-30T21:08:57.831Z",
+    "status": "passed",
+    "actualCliStartup": true,
+    "healthStatus": 200,
+    "missingJwtStatus": 401,
+    "wrongOriginStatus": 403,
+    "upstreamInferenceAttempted": false,
+    "credentials": "dummy environment only",
+    "limits": [
+      "Startup and rejection gates verified with a temporary owned process; production identity and inference are outside this check."
+    ]
+  },
+  "chrome": {
+    "generatedAt": "2026-09-30T21:22:12.524Z",
+    "browser": "Chrome/154.0.8037.93",
+    "provenance": "Real unpacked dist MV3 in temporary profile; synthetic local pages; Jev OFF. Semantic panel display uses explicitly mocked data bound to actual tab navigation.",
+    "contextMenuPermission": "granted-and-revoked-through-options-ui",
+    "broadHostPermission": "native-confirmation-required-not-automated",
+    "continuousGuardChecks": "skipped-here-covered-with-mocked-transport-in-dynamic-dom",
+    "manualAnalysis": "passed",
+    "twoTabSidepanel": "passed",
+    "workerHttpOrigins": [],
+    "cspViolations": [],
+    "consoleErrors": []
+  },
+  "dynamicDom": {
+    "generatedAt": "2026-09-30T21:18:29.475Z",
+    "browser": "Chrome/154.0.8037.93",
+    "provenance": "Synthetic DOM; actual bundled content+local engine; mocked worker transport. Compact viewport/dpr2 is a responsive rendering probe, not native browser zoom. Long tasks include fixture initialization and DOM automation.",
+    "runtimeEvidence": [
+      {
+        "fixture": "long-page31k",
+        "status": {
+          "ok": true,
+          "surface": "web",
+          "monitoring": true,
+          "continuousProtection": true,
+          "manualOnly": false,
+          "lastScanAt": "2026-09-30T21:18:27.649Z",
+          "scannedItems": 1,
+          "scanState": "partial",
+          "localDurationMs": 6,
+          "coverage": "page-visible",
+          "errorCode": null,
+          "totalDurationMs": 7,
+          "markedItems": 1
+        },
+        "longTaskDurationsMs": []
+      },
+      {
+        "fixture": "clickfix-dark-compact500x300-dpr2",
+        "status": {
+          "ok": true,
+          "surface": "web",
+          "monitoring": true,
+          "continuousProtection": true,
+          "manualOnly": false,
+          "lastScanAt": "2026-09-30T21:18:29.350Z",
+          "scannedItems": 1,
+          "scanState": "completed",
+          "localDurationMs": 2,
+          "coverage": "page-visible",
+          "errorCode": null,
+          "totalDurationMs": 3,
+          "markedItems": 1
+        },
+        "longTaskDurationsMs": []
+      }
+    ]
+  },
+  "independentReview": {
+    "originalFindings": 8,
+    "resolved": 8
+  },
+  "dependencyAudit": {
+    "knownVulnerabilities": 0
+  },
+  "nativeControl": {
+    "blockedAction": "sky.list_apps",
+    "reason": "automatic approval rejected enumeration of unrelated private application titles",
+    "personalBrowserValidated": false
+  },
+  "pending": [
+    "authenticated Gmail/Outlook DOM",
+    "native host confirmation and native context-menu selection",
+    "production OIDC/TLS deployment",
+    "representative holdout and <=1% visible FPR",
+    "native zoom200/accessibility homologation"
+  ],
+  "edge": {
+    "localStatus": "launch-failed-code0",
+    "remoteCi": "pending"
+  }
+}

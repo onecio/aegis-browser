@@ -1,3 +1,4 @@
+import { analyzeClickFix } from "../web/clickfix-analyzer.js";
 import { analyzeDomainIdentity } from "../core/domain-analysis.js";
 import { analyzeLink, analyzeUrl, registrableDomain } from "../core/domain.js";
 import { decideRisk } from "../core/decision-engine.js";
@@ -42,17 +43,22 @@ export function analyzeEmail(input = {}, { organizationKnowledgeBase = {} } = {}
   const claimText = `${senderName} ${subject} ${bodyText}`;
   const claims = [...new Set([...findBrandClaims(claimText), ...findOrganizationBrandClaims(claimText, knowledgeBase).map(({ name }) => name)])];
   const signals = [
-    ...extractTextSignals(subject, "subject"),
-    ...extractTextSignals(bodyText, "body")
+    ...extractTextSignals(subject, "subject", "message"),
+    ...extractTextSignals(bodyText, "body", "message")
   ];
 
-  if (senderDomain) signals.push(...analyzeDomainIdentity({ hostname: senderDomain, claims: claimText, organizationKnowledgeBase: knowledgeBase }).signals);
+  const hasAction = signals.some((signal) => ["credential", "financial"].includes(signal.category) && signal.severity > 0);
+  if (senderDomain) signals.push(...analyzeDomainIdentity({ hostname: senderDomain, claims: `${senderName} ${subject}`, organizationKnowledgeBase: knowledgeBase }).signals
+    .map((signal) => ({ ...signal, scope: "message", ...(signal.id === "BRAND_DOMAIN_CONFLICT" && !hasAction ? { severity: 0 } : {}) })));
   if (input.replyTo && senderDomain) {
     const replyDomain = String(input.replyTo).split("@").at(-1)?.toLowerCase();
     if (replyDomain && registrableDomain(replyDomain) !== registrableDomain(senderDomain)) {
-      signals.push({ id: "REPLY_TO_DOMAIN_MISMATCH", category: "identity", severity: 4, location: "sender", detail: "O domínio de resposta difere do domínio do remetente exibido.", evidence: { senderDomain: registrableDomain(senderDomain), replyToDomain: registrableDomain(replyDomain) } });
+      signals.push({ id: "REPLY_TO_DOMAIN_MISMATCH", category: "identity", severity: 4, location: "sender", scope: "message", detail: "O domínio de resposta difere do domínio do remetente exibido.", evidence: { senderDomain: registrableDomain(senderDomain), replyToDomain: registrableDomain(replyDomain) } });
     }
   }
+
+  const clickFix = analyzeClickFix(bodyText);
+  if (clickFix.detected) signals.push({ id: "CLICKFIX_EXECUTION_INSTRUCTIONS", category: "social", severity: 5, location: "body", scope: "message", detail: "A mensagem orienta a abrir uma ferramenta do sistema e colar ou executar um comando sob pretexto de verificação ou correção. Esse padrão é compatível com ClickFix.", evidence: clickFix.evidence });
 
   const qrUrlInputs = Array.isArray(input.qrUrls) ? input.qrUrls : [];
   const qrUrls = qrUrlInputs.slice(0, 8).flatMap((href) => {
@@ -65,7 +71,14 @@ export function analyzeEmail(input = {}, { organizationKnowledgeBase = {} } = {}
   const emailLinkCapacity = Math.max(0, 80 - qrUrls.length);
   const linkInputs = [...emailLinkInputs.slice(0, emailLinkCapacity), ...qrUrls];
   const links = linkInputs.map((link) => analyzeLink({ ...link, organizationKnowledgeBase: knowledgeBase }));
-  signals.push(...links.flatMap((link) => link.signals));
+  for (const [index, link] of links.entries()) {
+    const scope = `link:${index}`;
+    const contextText = typeof linkInputs[index]?.contextText === "string"
+      ? linkInputs[index].contextText.slice(0, 500)
+      : linkInputs.length === 1 && linkInputs[index]?.source !== "qr" ? bodyText : "";
+    const contextSignals = extractTextSignals(contextText, "link", scope);
+    signals.push(...link.signals.map((signal) => ({ ...signal, scope })), ...contextSignals);
+  }
   const qrScanIncomplete = ["unsupported", "unavailable", "partial"].includes(input.qrScanStatus);
   if (qrUrls.length) signals.push({ id: "QR_CODE_URL_DECODED", category: "context", severity: 0, location: "message", detail: "Uma URL foi decodificada de QR localmente e analisada sem abrir o destino." });
   if (qrScanIncomplete) signals.push({ id: "QR_SCAN_INCOMPLETE", category: "context", severity: 0, location: "message", detail: "A verificação local de QR não cobriu todas as imagens da mensagem neste navegador." });
@@ -82,7 +95,7 @@ export function analyzeEmail(input = {}, { organizationKnowledgeBase = {} } = {}
   for (const attachment of attachments) {
     const { filename } = normalizeAttachmentMetadata(attachment);
     if (/\.(?:pdf|docx?|xlsx?|jpg|png)\.(?:exe|scr|js|vbs|bat|cmd|ps1|msi)$/i.test(filename)) {
-      signals.push({ id: "ATTACHMENT_DOUBLE_EXTENSION", category: "attachment", severity: 5, location: "attachment", detail: "O nome do anexo contém uma extensão executável após uma extensão de documento." });
+      signals.push({ id: "ATTACHMENT_DOUBLE_EXTENSION", category: "attachment", severity: 5, location: "attachment", scope: `attachment:${attachments.indexOf(attachment)}`, detail: "O nome do anexo contém uma extensão executável após uma extensão de documento." });
     }
   }
 
@@ -156,7 +169,10 @@ export function extractEmailFromDocument(document, rootOverride, bodyOverride) {
   const bodyText = rawBodyText.slice(0, 24000);
   const linkNodes = bodyNode.querySelectorAll("a[href]");
   const links = Array.from({ length: Math.min(linkNodes.length, 80) }, (_, index) => linkNodes[index])
-    .map((anchor) => ({ href: anchor.href, visibleText: anchor.innerText || anchor.textContent || "" }));
+    .map((anchor) => {
+      const context = anchor.closest?.("p, li, td") ?? anchor.parentElement;
+      return { href: anchor.href, visibleText: anchor.innerText || anchor.textContent || "", contextText: String(context?.innerText ?? context?.textContent ?? "").slice(0, 500) };
+    });
   const attachmentSelector = "[download], [data-filename], [data-attachment-name], [data-mime-type], [data-content-type], [aria-label*='attachment' i], [aria-label*='anexo' i], [aria-label*='arquivo' i], [data-testid*='attachment' i], [data-testid*='anexo' i]";
   const attachmentNodes = root.querySelectorAll(attachmentSelector);
   const attachments = Array.from({ length: Math.min(attachmentNodes.length, 30) }, (_, index) => attachmentNodes[index]).map((node) => {
@@ -182,7 +198,7 @@ export function extractEmailFromDocument(document, rootOverride, bodyOverride) {
 export function analyzeManualUrl(url, organizationKnowledgeBase = {}) {
   const result = analyzeUrl(url);
   if (!result.valid || !["http", "https"].includes(result.scheme)) {
-    return { surface: "url", coverage: { sufficient: false, reasons: ["URL inválida ou esquema não suportado"] }, signals: [], links: [], decision: decideRisk({ analysisError: true }) };
+    return { surface: "url", coverage: { sufficient: false, reasons: ["URL inválida ou esquema não suportado"] }, signals: [], links: [], decision: decideRisk({ analyzable: false }) };
   }
   const identity = analyzeDomainIdentity({ hostname: result.host, organizationKnowledgeBase });
   const signals = [...identity.signals];

@@ -1,5 +1,6 @@
+import { queryMonitor, summarizeConnection, summarizeMonitor } from "./operational-status.js";
 import { createI18n } from "../i18n.js";
-import { localizeFindingLocation } from "./finding-copy.js";
+import { localizeFindingLocation, localizeFindingDetail, localizeObservedEvidence } from "./finding-copy.js";
 
 const { t, localizeDocument } = createI18n(chrome.i18n);
 localizeDocument(document);
@@ -16,7 +17,7 @@ const setStatus = (text, kind = "") => { const node = $("#status"); node.textCon
 function renderDecision(decision) {
   const state = copy[decision?.state] ? decision.state : "UNKNOWN";
   $("#riskIcon").className = `risk-icon ${state.toLowerCase()}`;
-  $("#riskIcon").textContent = ({ GREEN: "✓", YELLOW: "!", RED: "!", UNKNOWN: "?" })[state];
+  $("#riskIcon").textContent = ({ GREEN: "L", YELLOW: "!", RED: "!", UNKNOWN: "?" })[state];
   $("#riskTitle").textContent = copy[state][0];
   $("#riskCopy").textContent = copy[state][1];
   const list = $("#findings");
@@ -30,10 +31,12 @@ function renderDecision(decision) {
     const item = document.createElement("div");
     item.className = "finding";
     const detail = document.createElement("strong");
-    detail.textContent = finding.detail;
+    detail.textContent = localizeFindingDetail(finding, t);
     const where = document.createElement("small");
     where.textContent = t("findingLocation", [localizeFindingLocation(finding, t) || t("analysisLocation")]);
     item.append(detail, where);
+    const observed = localizeObservedEvidence(finding, t);
+    if (observed) { const evidence = document.createElement("small"); evidence.textContent = observed; item.append(evidence); }
     list.append(item);
   }
 }
@@ -43,39 +46,71 @@ async function activeTab() {
   return tab;
 }
 
+let currentMonitor = null;
+let refreshRevision = 0;
+
 async function refresh() {
-  const config = await chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" });
-  if (config?.ok) {
-    const jevOn = Boolean(config.settings.jevEnabled);
-    $("#mode").textContent = jevOn ? t("modeIntelligence") : t("modeLocal");
-    $("#engine").textContent = jevOn
-      ? t(config.hasByok || config.hasGatewayToken ? "engineJevConfigured" : "engineJevCredentialMissing")
-      : t("engineJevDisabled");
-  }
-  const tab = await activeTab();
-  if (!Number.isInteger(tab?.id)) return;
-  const response = await chrome.runtime.sendMessage({ type: "AEGIS_GET_CURRENT_ANALYSIS", tabId: tab.id });
-  if (response?.analysis) renderDecision(response.analysis);
+  const revision = ++refreshRevision;
+  try {
+    const config = await chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" });
+    const tab = await activeTab();
+    const monitor = await queryMonitor(tab?.id);
+    if (revision !== refreshRevision) return;
+    if (config?.ok) {
+      $("#mode").textContent = t(config.settings.jevEnabled ? "modeIntelligence" : "modeLocal");
+      $("#engine").textContent = summarizeConnection(config, t).text;
+    }
+    currentMonitor = monitor;
+    const summary = summarizeMonitor(monitor, t);
+    $("#monitorTitle").textContent = summary.title;
+    $("#monitorDetail").textContent = summary.detail;
+    $("#toggleMonitor").hidden = !summary.canPause;
+    $("#toggleMonitor").textContent = t(monitor?.monitoring ? "monitorPauseAction" : "monitorResumeAction");
+    $("#monitorCoverage").textContent = monitor?.ok ? t("monitorCoverageCopy") : "";
+    if (!Number.isInteger(tab?.id)) return;
+    const response = await chrome.runtime.sendMessage({ type: "AEGIS_GET_CURRENT_ANALYSIS", tabId: tab.id });
+    if (revision !== refreshRevision) return;
+    if (response?.analysis) renderDecision(response.analysis);
+    else {
+      $("#riskTitle").textContent = t("notAnalyzedTitle");
+      $("#riskCopy").textContent = t("notAnalyzedCopy");
+      $("#riskIcon").className = "risk-icon unknown";
+      $("#riskIcon").textContent = "?";
+      $("#findings").replaceChildren();
+      $("#findings").hidden = true;
+    }
+  } catch { setStatus(t("settingsLoadFailed"), "error"); }
 }
 
-async function requestAnalysis(userRequested = true) {
-  const tab = await activeTab();
-  if (!Number.isInteger(tab?.id)) { setStatus(t("cannotIdentifyTab"), "error"); return; }
+async function requestAnalysis() {
+  const button = $("#analyzePage");
+  button.disabled = true;
+  setStatus(t("analysisInProgress"));
   try {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: "AEGIS_REQUEST_SCAN", userRequested });
-    } catch {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-      await chrome.tabs.sendMessage(tab.id, { type: "AEGIS_REQUEST_SCAN", userRequested });
-    }
+    const prepared = await chrome.runtime.sendMessage({ type: "AEGIS_ANALYZE_ACTIVE_TAB" });
+    if (!prepared?.ok || !Number.isInteger(prepared.tabId)) throw new Error("PAGE_UNAVAILABLE");
+    const scanned = await chrome.tabs.sendMessage(prepared.tabId, { type: "AEGIS_REQUEST_SCAN", userRequested: true, continuousProtection: prepared.continuousProtection });
+    if (!scanned?.ok) { setStatus(t("analysisIncomplete"), "error"); return; }
     setStatus(t("localAnalysisComplete"), "success");
     await refresh();
-  } catch {
-    setStatus(t("pageAnalysisRestricted"), "error");
-  }
+  } catch { setStatus(t("pageAnalysisRestricted"), "error"); }
+  finally { button.disabled = false; }
 }
 
-$("#analyzePage").addEventListener("click", () => void requestAnalysis(true));
+$("#toggleMonitor").addEventListener("click", async () => {
+  const tab = await activeTab();
+  if (!Number.isInteger(tab?.id) || !currentMonitor?.ok) return;
+  const button = $("#toggleMonitor");
+  button.disabled = true;
+  try {
+    const result = await chrome.tabs.sendMessage(tab.id, { type: currentMonitor.monitoring ? "AEGIS_STOP_MONITORING" : "AEGIS_RESUME_MONITORING" });
+    if (!result?.ok) setStatus(t("monitorChangeFailed"), "error");
+    await refresh();
+  } catch { setStatus(t("monitorChangeFailed"), "error"); }
+  finally { button.disabled = false; }
+});
+
+$("#analyzePage").addEventListener("click", () => void requestAnalysis());
 $("#openPanel").addEventListener("click", async () => {
   try { const tab = await activeTab(); await chrome.sidePanel.open({ tabId: tab.id }); }
   catch { setStatus(t("sidePanelOpenFailed"), "error"); }

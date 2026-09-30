@@ -7,6 +7,7 @@ export const FINDING_MESSAGE_KEYS = Object.freeze({
   THREAT_OR_FEAR_LANGUAGE: "signalThreatFear",
   ATTACHMENT_DOUBLE_EXTENSION: "signalAttachmentDoubleExtension",
   SPAM_PROMOTION: "signalSpamPromotion",
+  BULK_MAIL_CONTROL: "signalBulkMailControl",
   POSSIBLE_BITB: "signalPossibleBitb",
   CLICKFIX_EXECUTION_INSTRUCTIONS: "signalClickFixInstructions",
   CREDENTIAL_FORM_PRESENT: "signalCredentialFormPresent",
@@ -44,6 +45,7 @@ export const LOCATION_MESSAGE_KEYS = Object.freeze({
 });
 
 export function localizeFindingDetail(finding, t) {
+  if (finding?.severity === 0 && finding?.detail) return finding.detail;
   const key = FINDING_MESSAGE_KEYS[finding?.id];
   if (!key || typeof t !== "function") return finding?.detail ?? "";
   const evidence = finding.evidence ?? {};
@@ -56,6 +58,23 @@ export function localizeFindingDetail(finding, t) {
   if (finding.id === "ORGANIZATION_DOMAIN_RECOGNIZED") substitutions = [(evidence.kinds ?? []).join(", ")];
 
   return t(messageKey, substitutions) || finding.detail || "";
+}
+
+export function localizeObservedEvidence(finding, t) {
+  const evidence = finding?.evidence ?? {};
+  const domain = (value) => typeof value === "string" && /^[a-z0-9.-]{1,253}$/i.test(value) ? value : null;
+  if (finding?.id === "LINK_DISPLAY_DESTINATION_MISMATCH") {
+    const displayed = domain(evidence.displayedDomain);
+    const destination = domain(evidence.destinationDomain);
+    if (displayed && destination) return t("evidenceDomainDifference", [displayed, destination]);
+  }
+  if (finding?.id === "CREDENTIAL_FORM_CROSS_DOMAIN") {
+    const page = domain(evidence.pageDomain);
+    const destination = domain(evidence.actionDomain);
+    if (page && destination) return t("evidenceFormDestination", [page, destination]);
+  }
+  if (finding?.id === "POSSIBLE_LOOKALIKE_DOMAIN" && domain(evidence.domain)) return t("evidenceObservedDomain", [evidence.domain]);
+  return "";
 }
 
 export function localizeFindingLocation(finding, t) {

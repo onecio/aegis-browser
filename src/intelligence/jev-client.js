@@ -1,10 +1,12 @@
 import { makeJevState } from "../security/redaction.js";
 
 const API_URL = "https://api.typesafe.ai/v1/systemone";
-const MODEL = "jev-latest";
+export const JEV_MODEL = "jev-latest";
 const TIMEOUT_MS = 5500;
 const MAX_RESPONSE_BYTES = 48_000;
 const MAX_API_CREDENTIAL_LENGTH = 1024;
+const SERIALIZATION_HALF_STEP = 0.005;
+const NUMERIC_EPSILON = 1e-9;
 const SCORE_KEYS = [
   "social_engineering_intensity",
   "credential_risk",
@@ -104,102 +106,120 @@ export function buildJevQuestions() {
   };
 }
 
-async function readJsonBounded(response) {
-  if (Number(response.headers.get("content-length")) > MAX_RESPONSE_BYTES) throw new Error("Jev response exceeded limit");
+async function readJsonBounded(response, signal) {
+  if (Number(response.headers.get("content-length")) > MAX_RESPONSE_BYTES) throw Object.assign(new Error("Jev response exceeded limit"), { errorCode: "RESPONSE_TOO_LARGE" });
   const reader = response.body?.getReader();
   if (!reader) return {};
   const chunks = [];
   let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_RESPONSE_BYTES) { await reader.cancel(); throw new Error("Jev response exceeded limit"); }
-    chunks.push(value);
-  }
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal?.addEventListener("abort", cancel, { once: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_RESPONSE_BYTES) { await reader.cancel(); throw Object.assign(new Error("Jev response exceeded limit"), { errorCode: "RESPONSE_TOO_LARGE" }); }
+      chunks.push(value);
+    }
+  } finally { signal?.removeEventListener("abort", cancel); }
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-export async function evaluateJev({ features, apiKey, endpoint = API_URL, privacyMode = "STRICT", fetchImpl = fetch, signal, timeoutMs = TIMEOUT_MS } = {}) {
-  if (!apiKey || typeof apiKey !== "string" || apiKey.length < 12 || apiKey.length > MAX_API_CREDENTIAL_LENGTH) {
+export async function evaluateJev({ features, apiKey, endpoint = API_URL, privacyMode = "STRICT", fetchImpl = fetch, signal, timeoutMs = TIMEOUT_MS, maxCredentialLength = MAX_API_CREDENTIAL_LENGTH } = {}) {
+  if (!apiKey || typeof apiKey !== "string" || apiKey.length < 12 || apiKey.length > Math.min(maxCredentialLength, 4096) || /\s/.test(apiKey)) {
     return { status: "error", errorCode: "MISSING_OR_INVALID_KEY" };
   }
+  if (signal?.aborted) return { status: "error", errorCode: "CANCELLED" };
   const controller = new AbortController();
+  let rejectAbort;
+  const aborted = new Promise((_resolve, reject) => { rejectAbort = reject; });
+  const abort = () => rejectAbort(new DOMException("Jev inference cancelled", "AbortError"));
+  controller.signal.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const abortWithParent = () => controller.abort();
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener("abort", abortWithParent, { once: true });
   try {
-    const response = await fetchImpl(endpoint, {
+    if (controller.signal.aborted) return { status: "error", errorCode: "CANCELLED" };
+    const response = await Promise.race([fetchImpl(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ state: makeJevState(features, privacyMode), model: MODEL, questions: buildJevQuestions() }),
+      body: JSON.stringify({ state: makeJevState(features, privacyMode), model: JEV_MODEL, questions: buildJevQuestions() }),
       signal: controller.signal,
       cache: "no-store",
       credentials: "omit",
       referrerPolicy: "no-referrer"
-    });
+    }), aborted]);
     if (!response.ok) return { status: "error", errorCode: response.status === 401 ? "UNAUTHORIZED" : response.status === 403 ? "FORBIDDEN" : response.status === 429 ? "RATE_LIMITED" : response.status >= 500 ? "PROVIDER_UNAVAILABLE" : "PROVIDER_ERROR" };
-    const data = await readJsonBounded(response);
-    if (!data || !isRecord(data.answers) || typeof data.model !== "string") return { status: "error", errorCode: "INVALID_RESPONSE" };
-    const questions = buildJevQuestions();
-    const answers = {};
-    const signals = [];
-    for (const key of ["urgency", "credential_request", "process_bypass", "financial_action", "clickfix_instruction"]) {
-      const answer = data.answers[key];
-      if (answer?.type !== "noul" || !Number.isFinite(answer.noul) || answer.noul < 0 || answer.noul > 1) return { status: "error", errorCode: "INVALID_RESPONSE" };
-      answers[key] = answer.noul;
-    }
-    const choice = data.answers.classification;
-    const choiceOptions = Object.keys(questions.classification.criteria);
-    if (choice?.type !== "choice" || !choiceOptions.includes(choice.choice) || !validDistribution(choice.probabilities, choiceOptions) || !validProbability(choice.confidence)) return { status: "error", errorCode: "INVALID_RESPONSE" };
-    const choiceMaximum = Math.max(...Object.values(choice.probabilities));
-    if (choice.probabilities[choice.choice] + 0.000001 < choiceMaximum) return { status: "error", errorCode: "INVALID_RESPONSE" };
-    answers.classification = {
-      choice: choice.choice,
-      probabilities: Object.fromEntries(choiceOptions.map((key) => [key, choice.probabilities[key]])),
-      confidence: choice.confidence
-    };
-
-    for (const key of SCORE_KEYS) {
-      const answer = data.answers[key];
-      const levels = questions[key].criteria;
-      const levelKeys = levels.map((_level, index) => String(index));
-      if (answer?.type !== "score" || !Number.isFinite(answer.score) || answer.score < 0 || answer.score > levels.length - 1 || !validProbability(answer.confidence) || !validDistribution(answer.probabilities, levelKeys)) return { status: "error", errorCode: "INVALID_RESPONSE" };
-      const legend = Object.fromEntries(levels.map((level, index) => [String(index), level]));
-      if (!isRecord(answer.legend) || levelKeys.some((level) => answer.legend[level] !== legend[level]) || Object.keys(answer.legend).length !== levelKeys.length) return { status: "error", errorCode: "INVALID_RESPONSE" };
-      const expectedScore = levelKeys.reduce((sum, level) => sum + Number(level) * answer.probabilities[level], 0);
-      if (Math.abs(answer.score - expectedScore) > 0.02) return { status: "error", errorCode: "INVALID_RESPONSE" };
-      answers[key] = {
-        score: answer.score,
-        probabilities: Object.fromEntries(levelKeys.map((level) => [level, answer.probabilities[level]])),
-        legend,
-        confidence: answer.confidence
-      };
-    }
-    // Provisional: Jev can add a review signal only. It cannot produce RED or lower local risk.
-    for (const [key, category, detail] of [
-      ["urgency", "social", "A análise semântica encontrou linguagem potencialmente pressionadora."],
-      ["credential_request", "credential", "A análise semântica identificou possível pedido de credenciais."],
-      ["process_bypass", "social", "A análise semântica identificou possível tentativa de evitar verificações."],
-      ["financial_action", "financial", "A análise semântica identificou possível solicitação financeira incomum."],
-      ["clickfix_instruction", "social", "A análise semântica identificou instruções compatíveis com ClickFix."]
-    ]) {
-      if (answers[key] >= 0.75) signals.push({ id: `JEV_${key.toUpperCase()}`, category, severity: 2, location: "semantic", detail, source: "jev" });
-    }
-    if (["SUSPICIOUS", "PHISHING_LIKELY", "SPEAR_PHISHING_LIKELY", "BEC_LIKELY", "CREDENTIAL_PHISHING_LIKELY", "QUISHING_LIKELY"].includes(answers.classification.choice) && !signals.length) {
-      signals.push({ id: "JEV_REVIEW_SUGGESTED", category: "social", severity: 2, location: "semantic", detail: "A análise semântica sugere uma verificação adicional.", source: "jev" });
-    }
-    return { status: "connected", model: data.model, answers, signals, usage: sanitizeUsage(data.usage) };
+    const data = await Promise.race([readJsonBounded(response, controller.signal), aborted]);
+    return decodeJevResponse(data);
   } catch (error) {
-    return { status: "error", errorCode: error?.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR" };
+    return { status: "error", errorCode: signal?.aborted ? "CANCELLED" : controller.signal.aborted || error?.name === "AbortError" ? "TIMEOUT" : error?.errorCode ?? (error instanceof SyntaxError ? "INVALID_RESPONSE" : "NETWORK_ERROR") };
   } finally {
     clearTimeout(timer);
+    controller.signal.removeEventListener("abort", abort);
     signal?.removeEventListener("abort", abortWithParent);
   }
+}
+
+export function decodeJevResponse(data) {
+  if (!data || !isRecord(data.answers) || typeof data.model !== "string" || !data.model.length || data.model.length > 120) return { status: "error", errorCode: "INVALID_RESPONSE" };
+  const questions = buildJevQuestions();
+  const answers = {};
+  const signals = [];
+  for (const key of ["urgency", "credential_request", "process_bypass", "financial_action", "clickfix_instruction"]) {
+    const answer = data.answers[key];
+    if (answer?.type !== "noul" || !Number.isFinite(answer.noul) || answer.noul < 0 || answer.noul > 1) return { status: "error", errorCode: "INVALID_RESPONSE" };
+    answers[key] = answer.noul;
+  }
+  const choice = data.answers.classification;
+  const choiceOptions = Object.keys(questions.classification.criteria);
+  if (choice?.type !== "choice" || !choiceOptions.includes(choice.choice) || !validDistribution(choice.probabilities, choiceOptions) || !validProbability(choice.confidence)) return { status: "error", errorCode: "INVALID_RESPONSE" };
+  const choiceMaximum = Math.max(...Object.values(choice.probabilities));
+  if (choice.probabilities[choice.choice] + 0.000001 < choiceMaximum) return { status: "error", errorCode: "INVALID_RESPONSE" };
+  answers.classification = {
+    choice: choice.choice,
+    probabilities: Object.fromEntries(choiceOptions.map((key) => [key, choice.probabilities[key]])),
+    confidence: choice.confidence
+  };
+
+  for (const key of SCORE_KEYS) {
+    const answer = data.answers[key];
+    const levels = questions[key].criteria;
+    const levelKeys = levels.map((_level, index) => String(index));
+    if (answer?.type !== "score" || !Number.isFinite(answer.score) || answer.score < 0 || answer.score > levels.length - 1 || !validProbability(answer.confidence) || !validDistribution(answer.probabilities, levelKeys)) return { status: "error", errorCode: "INVALID_RESPONSE" };
+    const legend = Object.fromEntries(levels.map((level, index) => [String(index), level]));
+    if (!isRecord(answer.legend) || levelKeys.some((level) => answer.legend[level] !== legend[level]) || Object.keys(answer.legend).length !== levelKeys.length) return { status: "error", errorCode: "INVALID_RESPONSE" };
+    const expectedScore = levelKeys.reduce((sum, level) => sum + Number(level) * answer.probabilities[level], 0);
+    // The live provider serializes probabilities and scores to two decimals.
+    // Bound their aggregate rounding error, retaining rubric/range/distribution checks.
+    const serializationTolerance = SERIALIZATION_HALF_STEP * (1 + levelKeys.reduce((sum, level) => sum + Number(level), 0));
+    if (Math.abs(answer.score - expectedScore) > serializationTolerance + NUMERIC_EPSILON) return { status: "error", errorCode: "INVALID_RESPONSE" };
+    answers[key] = {
+      score: answer.score,
+      probabilities: Object.fromEntries(levelKeys.map((level) => [level, answer.probabilities[level]])),
+      legend,
+      confidence: answer.confidence
+    };
+  }
+  // Provisional: Jev can add a review signal only. It cannot produce RED or lower local risk.
+  for (const [key, category, detail] of [
+    ["urgency", "social", "A análise semântica encontrou linguagem potencialmente pressionadora."],
+    ["credential_request", "credential", "A análise semântica identificou possível pedido de credenciais."],
+    ["process_bypass", "social", "A análise semântica identificou possível tentativa de evitar verificações."],
+    ["financial_action", "financial", "A análise semântica identificou possível solicitação financeira incomum."],
+    ["clickfix_instruction", "social", "A análise semântica identificou instruções compatíveis com ClickFix."]
+  ]) {
+    if (answers[key] >= 0.75) signals.push({ id: `JEV_${key.toUpperCase()}`, category, severity: 2, location: "semantic", detail, source: "jev" });
+  }
+  if (["SUSPICIOUS", "PHISHING_LIKELY", "SPEAR_PHISHING_LIKELY", "BEC_LIKELY", "CREDENTIAL_PHISHING_LIKELY", "QUISHING_LIKELY"].includes(answers.classification.choice) && !signals.length) {
+    signals.push({ id: "JEV_REVIEW_SUGGESTED", category: "social", severity: 2, location: "semantic", detail: "A análise semântica sugere uma verificação adicional.", source: "jev" });
+  }
+  return { status: "connected", model: data.model, answers, signals, usage: sanitizeUsage(data.usage) };
 }
 
 function isRecord(value) {
@@ -214,7 +234,7 @@ function validDistribution(distribution, expectedKeys) {
   if (!isRecord(distribution) || Object.keys(distribution).length !== expectedKeys.length) return false;
   if (expectedKeys.some((key) => !validProbability(distribution[key]))) return false;
   const sum = expectedKeys.reduce((total, key) => total + distribution[key], 0);
-  return Math.abs(sum - 1) <= 0.02;
+  return Math.abs(sum - 1) <= 0.02 + NUMERIC_EPSILON;
 }
 
 function sanitizeUsage(usage) {
@@ -228,5 +248,5 @@ function sanitizeUsage(usage) {
 
 export function shouldCallJev(features, userRequested = false) {
   if (userRequested) return true;
-  return (features.signals ?? []).some((signal) => ["credential", "financial", "social", "identity"].includes(signal.category) || signal.severity >= 3);
+  return (features.signals ?? []).some((signal) => signal.severity > 0 && (["credential", "financial", "social", "identity"].includes(signal.category) || signal.severity >= 3));
 }

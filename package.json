@@ -1,6 +1,6 @@
 {
   "name": "aegis-browser",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Local-first email and web security extension for Chromium browsers",
@@ -13,12 +13,18 @@
     "sbom": "node scripts/generate-sbom.mjs",
     "verify:repro": "node scripts/verify-reproducibility.mjs",
     "gateway": "node gateway/server.js",
+    "test:gateway-cli": "node scripts/smoke-gateway-cli.mjs",
+    "verify:jev-gateway": "node scripts/verify-jev-gateway.mjs",
+    "verify:jev-extension": "node scripts/smoke-jev-extension.mjs",
     "lint": "eslint src gateway scripts tests --max-warnings=0",
     "test": "node --test",
+    "test:dynamic-dom": "node scripts/dynamic-dom.mjs",
     "test:browser": "node scripts/smoke-browsers.mjs",
     "test:live-dom": "npm run build && node scripts/smoke-live-dom.mjs",
     "update:unicode": "node scripts/update-confusables.mjs",
-    "validate": "npm run lint && npm run test && npm run verify:repro && npm run test:browser && npm run audit:bundle && npm run audit:secrets && npm run audit:deps"
+    "validate": "npm run lint && npm run test && npm run test:gateway-cli && npm run verify:repro && npm run test:browser && npm run test:dynamic-dom && npm run evaluate:local && npm run audit:bundle && npm run audit:secrets && npm run audit:deps",
+    "evaluate:local": "node scripts/evaluate-local.mjs",
+    "evaluate:jev": "node scripts/evaluate-jev.mjs"
   },
   "dependencies": {
     "jose": "6.2.12",

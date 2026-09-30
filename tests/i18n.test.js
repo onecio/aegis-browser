@@ -40,6 +40,13 @@ test("localization uses text and approved attributes without parsing message mar
   assert.equal(i18n.t("missingMessage"), "");
 });
 
+test("extension pages contain no inline styles blocked by the MV3 CSP", async () => {
+  for (const name of ["popup.html", "options.html", "sidepanel.html"]) {
+    const html = await readFile(new URL(`../extension/${name}`, import.meta.url), "utf8");
+    assert.equal(/\sstyle\s*=/i.test(html), false, `${name} contains an inline style attribute`);
+  }
+});
+
 test("default locale contains every key referenced by the manifest, pages, and UI code", async () => {
   const [manifest, catalog, ...files] = await Promise.all([
     readFile(new URL("../extension/manifest.json", import.meta.url), "utf8"),

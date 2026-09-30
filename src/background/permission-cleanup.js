@@ -75,7 +75,7 @@ export async function clearRevokedSessionAnalyses({ storage, origins }) {
   return removedKeys;
 }
 
-export async function clearRevokedOriginState({ removedOrigins, storage, permissions, secretKeys, readSettings, clearPatterns, disableJev, resetStoredJev }) {
+export async function clearRevokedOriginState({ removedOrigins, storage, secretStorage = storage, permissions, secretKeys, readSettings, clearPatterns, disableJev, resetStoredJev }) {
   if (!Array.isArray(removedOrigins) || removedOrigins.length === 0) return false;
 
   try {
@@ -96,7 +96,7 @@ export async function clearRevokedOriginState({ removedOrigins, storage, permiss
       currentSettings,
       removedOrigins,
       permissions,
-      storage,
+      storage: secretStorage,
       secretKeys,
       disableJev,
       resetStoredJev

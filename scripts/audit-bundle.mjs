@@ -24,7 +24,7 @@ async function walk(path) {
   return files;
 }
 
-for (const relative of ["service-worker.js", "content.js", "popup.js", "sidepanel.js", "options.js", "popup.html", "sidepanel.html", "options.html", "aegis.css"]) {
+for (const relative of ["service-worker.js", "content.js", "popup.js", "sidepanel.js", "options.js", "popup.html", "sidepanel.html", "options.html", "aegis.css", "content.css"]) {
   try { await stat(resolve(dist, relative)); } catch { failures.push(`missing build artifact: ${relative}`); }
 }
 

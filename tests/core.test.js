@@ -403,10 +403,11 @@ test("an opened image-only email reaches local QR analysis", async () => {
     innerText: "",
     textContent: "",
     parentElement: null,
+    closest() { return null; },
     querySelector(selector) { return selector.startsWith("img") ? image : null; },
     querySelectorAll(selector) { return selector === "img" ? [image] : []; }
   };
-  const document = { querySelector(selector) { return selector === ".a3s.aiL" ? body : null; } };
+  const document = { querySelector(selector) { return selector === ".a3s.aiL" ? body : null; }, querySelectorAll(selector) { return selector === ".a3s.aiL" ? [body] : []; } };
   const adapter = createEmailProviderAdapter("gmail");
   const opened = adapter.findOpenedMessage(document);
   assert.equal(opened?.body, body);
@@ -631,7 +632,8 @@ test("Jev provider failure returns a local fallback status without exposing erro
 test("Jev requests are prefiltered and provider authorization failures remain typed", async () => {
   assert.equal(shouldCallJev({ signals: [] }), false);
   assert.equal(shouldCallJev({ signals: [{ category: "context", severity: 0 }] }), false);
-  assert.equal(shouldCallJev({ signals: [{ category: "credential", severity: 0 }] }), true);
+  assert.equal(shouldCallJev({ signals: [{ category: "credential", severity: 0 }] }), false);
+  assert.equal(shouldCallJev({ signals: [{ category: "credential", severity: 1 }] }), true);
   assert.equal(shouldCallJev({ signals: [] }, true), true);
 
   for (const [status, errorCode] of [[401, "UNAUTHORIZED"], [403, "FORBIDDEN"], [429, "RATE_LIMITED"], [500, "PROVIDER_UNAVAILABLE"], [400, "PROVIDER_ERROR"]]) {

@@ -2,6 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { findSecretIndicators } from "../scripts/audit-secrets.mjs";
 
+test("runtime environment references are not treated as literal credentials", () => {
+  assert.deepEqual(findSecretIndicators("apiKey: process.env.TYPESAFE_API_KEY"), []);
+  assert.deepEqual(findSecretIndicators("TYPESAFE_API_KEY: process.env.TYPESAFE_API_KEY"), []);
+  assert.deepEqual(findSecretIndicators('apiKey: "process.env.ABCDefghIJklmnOPqrstUVwxYZ123456"'), ["named API credential"]);
+});
+
 const syntheticCredential = ["A1b2C3d4", "E5f6G7h8", "J9k0L1m2", "N3p4Q5r6", "S7t8U9v0"].join("");
 
 test("secret audit detects high-entropy named credentials without returning their values", () => {

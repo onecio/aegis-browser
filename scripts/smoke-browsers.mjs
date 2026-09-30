@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { build } from "esbuild";
 import puppeteer from "puppeteer-core";
@@ -57,7 +57,7 @@ const quishingAnalyzerBundle = (await build({
   logLevel: "silent"
 })).outputFiles[0].text;
 const emailFixtures = {
-  gmail: `<!doctype html><main role="main"><section class="gmail-message"><span email="analyst@mailer.example.test" name="Analyst Desk"></span><h1 data-thread-perm-id="thread-1">Gmail account notification</h1><div class="a3s aiL">Please review the account update before Friday. <a href="https://portal.example.test/login">https://login.microsoft.com</a></div><span data-filename="invoice.pdf.exe" data-mime-type="application/octet-stream"></span></section><table><tbody><tr class="zA"><td><span email="sender@example.test" name="Example Sender"></span><span class="bog">Weekly statement</span><span>Billing update details</span></td></tr></tbody></table></main>`,
+  gmail: `<!doctype html><main role="main"><section class="gmail-message"><span email="analyst@mailer.example.test" name="Analyst Desk"></span><h1 data-thread-perm-id="thread-1">Gmail account notification</h1><div class="a3s aiL">Please review the account update before Friday. <a href="https://portal.example.test/login">https://login.microsoft.com</a></div><span data-filename="invoice.pdf.exe" data-mime-type="application/octet-stream"></span></section><table><tbody><tr class="zA"><td><span email="sender@example.test" name="Example Sender"></span><span class="bog">Weekly statement</span><span class="y2">Billing update details</span><button>Unsubscribe</button></td></tr></tbody></table></main>`,
   outlook: `<!doctype html><main role="main"><section class="outlook-message"><span data-email="billing@vendor.example.test" name="Vendor Billing"></span><h2 role="heading">Invoice review</h2><div aria-label="Corpo da mensagem">Please review the invoice details and contact the vendor with questions. <a href="https://billing.example.test/invoice">Open invoice details</a></div><span aria-label="Anexo invoice.pdf.exe" data-content-type="application/x-msdownload"></span></section><div role="option" data-testid="message-item"><span data-email="sender@vendor.example.test" name="Vendor Sender"></span><h3 data-testid="subject">Payment schedule</h3><span>Updated payment schedule details</span></div></main>`,
   generic: `<!doctype html><main role="main"><section class="generic-message"><span data-email="notice@service.example.test" name="Service Notice"></span><h2 role="heading">Account summary</h2><div data-testid="generic-message-body">Your monthly account summary is ready to review. <a href="https://service.example.test/summary">Open account summary</a></div></section><div role="listitem" data-message-id="msg-1"><span data-email="news@service.example.test" name="Service News"></span><h3 data-testid="subject">Monthly update</h3><span>Product news and account details</span></div></main>`
 };
@@ -139,7 +139,9 @@ async function smokeEmailAdapters(browser, baseUrl, kind) {
           attachmentMetadata: message?.attachments,
           attachmentFindingIds: analyzeEmail(message ?? {}).signals.filter((signal) => signal.id === "ATTACHMENT_DOUBLE_EXTENSION").map((signal) => signal.id),
           rowCount: rows.length,
-          inboxSender: rows[0]?.payload.sender.address
+          inboxSender: rows[0]?.payload.sender.address,
+          inboxPreview: rows[0]?.payload.preview,
+          inboxSpam: analyzeEmail(rows[0]?.payload ?? {}).signals.some((signal) => signal.id === "SPAM_PROMOTION")
         });
 
         const benchmarkDocument = document.implementation.createHTMLDocument(`AEGIS ${provider} inbox benchmark`);
@@ -193,6 +195,8 @@ async function smokeEmailAdapters(browser, baseUrl, kind) {
     assert.deepEqual(results.find((item) => item.provider === "outlook").attachmentFindingIds, ["ATTACHMENT_DOUBLE_EXTENSION"]);
     assert.deepEqual(results.find((item) => item.provider === "generic").attachmentFindingIds, []);
     assert.equal(results.find((item) => item.provider === "gmail").inboxSender, "sender@example.test");
+    assert.equal(results.find((item) => item.provider === "gmail").inboxPreview, "Billing update details", `${kind}: Gmail analyzes the message snippet rather than row controls`);
+    assert.equal(results.find((item) => item.provider === "gmail").inboxSpam, false, `${kind}: an Unsubscribe row control alone does not classify mail as spam`);
     assert.equal(results.find((item) => item.provider === "outlook").inboxSender, "sender@vendor.example.test");
     assert.equal(results.find((item) => item.provider === "generic").inboxSender, "news@service.example.test");
     for (const provider of ["gmail", "outlook", "generic"]) assert.equal(timings[provider].inboxRows, 20, `${kind}: ${provider} benchmark analyzes 20 synthetic inbox rows`);
@@ -291,7 +295,16 @@ async function smokeBrowser(kind, fixtureUrl) {
       }
     });
 
-    const options = await browser.newPage();
+    const consoleErrors = [];
+    const cspViolations = [];
+    const watchPage = (page, surface) => {
+      page.on("pageerror", (error) => consoleErrors.push({ surface, type: "pageerror", message: error.message.slice(0, 600) }));
+      page.on("console", (message) => {
+        if (message.type() === "error" && /Content Security Policy|content-security-policy|violates.*directive/i.test(message.text())) cspViolations.push({ surface, message: message.text().slice(0, 600) });
+      });
+    };
+    let options = await browser.newPage();
+    watchPage(options, "options");
     await options.goto(`chrome-extension://${extensionId}/options.html`, { waitUntil: "domcontentloaded" });
     await options.waitForSelector("#jevEnabled");
     const optionsLocalization = await options.evaluate(() => ({
@@ -316,6 +329,29 @@ async function smokeBrowser(kind, fixtureUrl) {
     assert.equal(response.settings.connectionMode, "gateway", `${kind}: gateway is the default provider`);
     assert.equal(await options.$eval("#contextMenu", (node) => node.checked), false, `${kind}: context-menu permission is opt-in`);
     assert.equal(response.settings.sessionIntelligence, false, `${kind}: local session intelligence defaults to OFF`);
+    const privacyInitial = await options.$eval("#privacyPreview", (node) => JSON.parse(node.textContent));
+    assert.equal("body_excerpt" in privacyInitial, false, `${kind}: strict preview omits message text`);
+    await options.select("#privacyMode", "BALANCED");
+    await options.click("#saveSettings");
+    await options.waitForFunction(() => document.querySelector("#status").textContent.includes("Autorize explicitamente"));
+    assert.equal(await options.$eval("#contentSharingConsent", (node) => node.checked), false, `${kind}: excerpts require explicit consent`);
+    const unchangedPrivacy = await options.evaluate(() => chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" }));
+    assert.equal(unchangedPrivacy.settings.privacyMode, "STRICT", `${kind}: declined excerpt sharing keeps strict mode`);
+    await options.select("#privacyMode", "STRICT");
+
+
+    const sessionCredential = await options.evaluate(async () => {
+      const send = (message) => new Promise((resolveMessage) => chrome.runtime.sendMessage(message, resolveMessage));
+      await send({ type: "AEGIS_SAVE_SETTINGS", settings: { connectionMode: "byok", jevEnabled: true } });
+      await send({ type: "AEGIS_SAVE_SECRET", kind: "byok", value: "test-persistent-credential-value" });
+      const local = await chrome.storage.local.get("aegis.secret.byok");
+      const session = await chrome.storage.session.get("aegis.secret.byok");
+      const configured = await send({ type: "AEGIS_GET_SETTINGS" });
+      await send({ type: "AEGIS_SAVE_SETTINGS", settings: { jevEnabled: false, connectionMode: "gateway" } });
+      const removed = await chrome.storage.session.get("aegis.secret.byok");
+      return { localValue: local["aegis.secret.byok"], sessionValue: session["aegis.secret.byok"], hasByok: configured.hasByok, removed: removed["aegis.secret.byok"] };
+    });
+    assert.deepEqual(sessionCredential, { sessionValue: "test-persistent-credential-value", hasByok: true }, `${kind}: BYOK credential stays session-only and is erased when Jev is disabled`);
 
     const optionalPermissions = await options.evaluate(async () => ({
       email: await chrome.permissions.contains({ origins: ["https://mail.google.com/*", "https://outlook.office.com/*", "https://outlook.live.com/*"] }),
@@ -370,7 +406,34 @@ async function smokeBrowser(kind, fixtureUrl) {
     const enabledPatterns = await options.evaluate(() => new Promise((resolveMessage) => chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" }, resolveMessage)));
     assert.equal(enabledPatterns.settings.sessionIntelligence, true, `${kind}: saved session intelligence is reported by the service worker`);
 
+    let continuousActive = false;
+    if (process.env.AEGIS_INTERACTIVE_HOST_TEST === "1") {
+    await options.click("#webProtection");
+    try {
+      await options.waitForFunction(async () => {
+        const current = await chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" });
+        return current?.settings?.webProtection && await chrome.permissions.contains({ origins: ["https://*/*", "http://*/*"] });
+      }, { timeout: 10_000 });
+      continuousActive = true;
+    } catch (error) {
+      const diagnostic = await options.evaluate(async () => ({ checked: document.querySelector("#webProtection").checked, status: document.querySelector("#status").textContent, granted: await chrome.permissions.contains({ origins: ["https://*/*", "http://*/*"] }), setting: (await chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" })).settings.webProtection }));
+      if (diagnostic.granted || diagnostic.setting) throw new Error(`${kind}: inconsistent web-protection grant: ${JSON.stringify(diagnostic)}`, { cause: error });
+      process.stdout.write(`${kind}: broad host grant requires native browser confirmation; automated acceptance unavailable. Continuous MV3 checks are explicitly skipped; manual activeTab analysis continues. Optional permission remains ungranted.\n`);
+      // Close the isolated options tab to cancel its pending native request.
+      // No permission API, launch flag or test manifest grants the host access.
+      await options.close();
+      options = await browser.newPage();
+      watchPage(options, "options-reopened");
+      await options.goto(`chrome-extension://${extensionId}/options.html`, { waitUntil: "domcontentloaded" });
+      await options.waitForSelector("#webProtection");
+      assert.equal(await options.$eval("#webProtection", (node) => node.checked), false);
+    }
+    } else {
+      process.stdout.write(`${kind}: native broad-host consent is outside unattended automation; continuous MV3 guards are explicitly skipped here. Manual activeTab and dynamic DOM checks continue.\n`);
+    }
+
     const page = await browser.newPage();
+    watchPage(page, "fixture");
     await page.goto(fixtureUrl, { waitUntil: "domcontentloaded" });
     const popupTargetPromise = browser.waitForTarget(
       (target) => target.type() === "page" && target.url() === `chrome-extension://${extensionId}/popup.html`,
@@ -379,6 +442,7 @@ async function smokeBrowser(kind, fixtureUrl) {
     await extension.triggerAction(page);
     const popupTarget = await popupTargetPromise;
     const popup = await popupTarget.asPage();
+    watchPage(popup, "popup");
     await popup.waitForSelector("#analyzePage");
     const popupLocalization = await popup.evaluate(() => ({
       lang: document.documentElement.lang,
@@ -388,8 +452,19 @@ async function smokeBrowser(kind, fixtureUrl) {
     assert.deepEqual(popupLocalization, { lang: "pt-BR", analyze: "Analisar esta página", urlLabel: "Endereço para analisar" }, `${kind}: popup consumes translated text and attributes`);
     await popup.click("#analyzePage");
     await popup.waitForFunction(() => document.querySelector("#status")?.textContent.includes("concluída"), { timeout: 10_000 });
-    await page.waitForFunction(() => document.querySelector("[data-aegis-root]")?.shadowRoot?.textContent.includes("fortes sinais de risco"), { timeout: 10_000 });
-    await page.waitForFunction(() => document.querySelector("#spoofed-link")?.getAttribute("data-aegis-risk-link") === "mismatch", { timeout: 10_000 });
+    if (continuousActive) {
+      await page.waitForFunction(() => document.querySelector("[data-aegis-root]")?.shadowRoot?.textContent.includes("fortes sinais de risco"), { timeout: 10_000 });
+      await page.waitForFunction(() => document.querySelector("#spoofed-link")?.getAttribute("data-aegis-risk-link") === "mismatch", { timeout: 10_000 });
+    } else {
+      const monitor = await options.evaluate(async () => {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        return chrome.tabs.sendMessage(tab.id, { type: "AEGIS_GET_MONITOR_STATUS" });
+      });
+      assert.equal(monitor.manualOnly, true);
+      assert.equal(monitor.monitoring, false);
+      assert.equal(await page.$$eval("[data-aegis-root], [data-aegis-risk-link]", (nodes) => nodes.length), 0, `${kind}: manual MV3 analysis does not install active warnings or link guards`);
+      assert.equal(await popup.$eval("#riskTitle", (node) => node.textContent), "Alto risco", `${kind}: factual local result remains available in the popup`);
+    }
     const storedSourceOrigin = await options.evaluate(async () => {
       const { "aegis.latestTab": latestTab } = await chrome.storage.session.get("aegis.latestTab");
       if (!Number.isInteger(latestTab)) return null;
@@ -409,6 +484,7 @@ async function smokeBrowser(kind, fixtureUrl) {
     await popup.$eval("#urlInput", (input) => { input.value = ""; });
     process.stdout.write(`${kind}: manual URL analysis is local, redacted, and does not visit the destination.\n`);
 
+    if (continuousActive) {
     const warning = await page.evaluate(() => document.querySelector("[data-aegis-root]")?.shadowRoot?.textContent ?? "");
     assert.match(warning, /Esta página apresenta fortes sinais de risco/);
     const initialDialogAccessibility = await page.evaluate(() => {
@@ -482,6 +558,7 @@ async function smokeBrowser(kind, fixtureUrl) {
     });
     assert.deepEqual(linkContinuation, { clickObserved: true, dialogClosed: true, restoredFocusId: "spoofed-link" }, `${kind}: explicit confirmation resumes the intercepted link action`);
     process.stdout.write(`${kind}: local warning and link/form guards passed.\n`);
+    }
 
     const session = await workerTarget.worker().then((worker) => worker.evaluate(async () => chrome.storage.session.get(null)));
     assert.equal(JSON.stringify(session).includes(secretMarker), false, `${kind}: password input value is never stored`);
@@ -490,6 +567,7 @@ async function smokeBrowser(kind, fixtureUrl) {
     assert.equal(persistedPatterns.includes("account-security.example"), false, `${kind}: session pattern state does not store cleartext domains`);
     assert.equal(persistedPatterns.includes("Microsoft"), false, `${kind}: session pattern state does not store brand claims`);
 
+    if (continuousActive) {
     await page.evaluate(() => {
       document.querySelector("#spoofed-link").href = "https://login.microsoft.com/";
     });
@@ -509,17 +587,20 @@ async function smokeBrowser(kind, fixtureUrl) {
     });
     await page.waitForFunction(() => document.querySelector("#dynamic-link")?.getAttribute("data-aegis-risk-link") === "mismatch", { timeout: 10_000 });
     process.stdout.write(`${kind}: replacing the main root and changing only a text node triggered fresh page analysis.\n`);
+    }
 
     const sidepanel = await browser.newPage();
+    watchPage(sidepanel, "sidepanel");
     await sidepanel.goto(`chrome-extension://${extensionId}/sidepanel.html`, { waitUntil: "domcontentloaded" });
+    await page.bringToFront();
     process.stdout.write(`${kind}: side panel opened.\n`);
     assert.equal(await sidepanel.$eval("html", (node) => node.lang), "pt-BR", `${kind}: side panel resolves its document language`);
-    await sidepanel.waitForFunction(() => document.querySelector("#mode")?.textContent === "JEV OFF", { timeout: 10_000 });
+    await sidepanel.waitForFunction(() => document.querySelector("#mode")?.textContent === "JEV OFF", { timeout: 10_000, polling: 100 });
     await sidepanel.waitForFunction(() => {
       const metrics = [...document.querySelectorAll("#dashboardMetrics .metric")];
       const pages = metrics.find((item) => item.querySelector(".metric-label")?.textContent === "Páginas analisadas");
       return pages && Number(pages.querySelector(".metric-value")?.textContent) > 0;
-    }, { timeout: 10_000 });
+    }, { timeout: 10_000, polling: 100 });
     const dashboardLabels = await sidepanel.$eval("#dashboardMetrics", (node) => node.textContent);
     assert.match(dashboardLabels, /Análises locais/);
     assert.match(dashboardLabels, /Análises Jev/);
@@ -531,7 +612,13 @@ async function smokeBrowser(kind, fixtureUrl) {
         urgency: 0.81, credential_request: 0.94, process_bypass: 0.12, financial_action: 0.08,
         credential_risk: { score: 3.25, confidence: 0.64, legend: { "0": "None", "1": "Mention", "2": "Sign in", "3": "Enter secret", "4": "Send secret" } }
       };
-      await chrome.storage.session.set({ [`aegis.analysis.${tab.id}`]: {
+      const key = `aegis.analysis.${tab.id}`;
+      const previous = (await chrome.storage.session.get(key))[key];
+      if (!previous?.sourceDocumentFingerprint) return false;
+      // UI rendering fixture only: preserve the actual tab/navigation binding.
+      // This mocked semantic display is not a real Jev provider evaluation.
+      await chrome.storage.session.set({ [key]: {
+        ...previous,
         analysisId: "test-feedback-analysis-1",
         state: "YELLOW", findings: [], riskVector: {}, surface: "email", senderDomain: "sender.example.test",
         links: [{ domain: "target.example.test", visibleDomain: "login.microsoft.com", mismatch: true, shortener: false, sensitiveParams: false, suspiciousParams: false }],
@@ -544,7 +631,7 @@ async function smokeBrowser(kind, fixtureUrl) {
     await sidepanel.waitForFunction(() => {
       const card = document.querySelector("#jevJudgmentsCard");
       return card && !card.hidden && card.textContent.includes("Risco de credenciais") && card.textContent.includes("3.25 / 4");
-    }, { timeout: 10_000 });
+    }, { timeout: 10_000, polling: 100 });
     process.stdout.write(`${kind}: Jev judgment display passed.\n`);
     const separateVector = await sidepanel.$eval("#vectors", (node) => node.textContent);
     assert.equal(separateVector.includes("3.25"), false, `${kind}: Jev scores remain separate from local risk vectors`);
@@ -553,12 +640,12 @@ async function smokeBrowser(kind, fixtureUrl) {
     assert.match(contextDetails, /sender\.example\.test/);
     assert.match(contextDetails, /target\.example\.test/);
     assert.match(contextDetails, /O texto e o destino divergem/);
-    await sidepanel.click('[data-feedback="falsePositive"]');
-    await sidepanel.waitForFunction(() => document.querySelector("#feedbackStatus")?.textContent.includes("registrado localmente"), { timeout: 5_000 });
+    await sidepanel.$eval('[data-feedback="falsePositive"]', (button) => button.click());
+    await sidepanel.waitForFunction(() => document.querySelector("#feedbackStatus")?.textContent.includes("registrado localmente"), { timeout: 5_000, polling: 100 });
     await sidepanel.waitForFunction(() => {
       const item = [...document.querySelectorAll("#dashboardMetrics .metric")].find((metric) => metric.querySelector(".metric-label")?.textContent === "Falsos positivos");
       return item && item.querySelector(".metric-value")?.textContent === "1";
-    }, { timeout: 5_000 });
+    }, { timeout: 5_000, polling: 100 });
     const dashboardStorage = await workerTarget.worker().then((worker) => worker.evaluate(async () => chrome.storage.local.get("aegis.localDashboard.v1")));
     const storedMetrics = dashboardStorage?.["aegis.localDashboard.v1"];
     assert.equal(storedMetrics?.days?.at(-1)?.feedback?.falsePositive, 1, `${kind}: feedback is persisted only as a local aggregate`);
@@ -567,11 +654,32 @@ async function smokeBrowser(kind, fixtureUrl) {
     assert.equal(feedbackStored.includes("sender.example.test"), false, `${kind}: dashboard stores no message or domain data`);
     const staleFeedback = await sidepanel.evaluate(() => new Promise((resolveMessage) => chrome.runtime.sendMessage({ type: "AEGIS_SUBMIT_FEEDBACK", kind: "phishing", tabId: -1, analysisId: "stale-analysis" }, resolveMessage)));
     assert.equal(staleFeedback.errorCode, "STALE_ANALYSIS", `${kind}: feedback is rejected when it refers to no current analysis`);
-    await sidepanel.click("#clearDashboard");
-    await sidepanel.waitForFunction(() => [...document.querySelectorAll("#dashboardMetrics .metric-value")].every((item) => item.textContent === "0"), { timeout: 5_000 });
+    await sidepanel.$eval("#clearDashboard", (button) => button.click());
+    await sidepanel.waitForFunction(() => [...document.querySelectorAll("#dashboardMetrics .metric-value")].every((item) => item.textContent === "0"), { timeout: 5_000, polling: 100 });
     const clearedDashboard = await workerTarget.worker().then((worker) => worker.evaluate(async () => chrome.storage.local.get("aegis.localDashboard.v1")));
     assert.equal(clearedDashboard["aegis.localDashboard.v1"], undefined, `${kind}: dashboard data can be deleted from the UI`);
     process.stdout.write(`${kind}: aggregate dashboard, content-free feedback, stale-feedback guard, and local deletion passed.\n`);
+    if (!popup.isClosed()) await popup.close();
+    const otherPage = await browser.newPage();
+    watchPage(otherPage, "second-fixture");
+    await otherPage.goto(`${new URL(fixtureUrl).origin}/synthetic-benign`, { waitUntil: "domcontentloaded" });
+    await otherPage.bringToFront();
+    await sidepanel.waitForFunction(() => document.querySelector("#riskTitle")?.textContent === "Análise inconclusiva" && document.querySelector("#feedbackCard").hidden && document.querySelector("#jevJudgmentsCard").hidden && document.querySelector("#toggleMonitor").hidden, { timeout: 5000, polling: 100 });
+    const otherPopupPromise = browser.waitForTarget((target) => target.type() === "page" && target.url() === `chrome-extension://${extensionId}/popup.html`, { timeout: 10000 });
+    await extension.triggerAction(otherPage);
+    const otherPopup = await (await otherPopupPromise).asPage();
+    watchPage(otherPopup, "second-popup");
+    await otherPopup.waitForSelector("#analyzePage");
+    await otherPopup.click("#analyzePage");
+    await otherPopup.waitForFunction(() => document.querySelector("#status")?.textContent.includes("concluída"), { timeout: 10000 });
+    await sidepanel.waitForFunction(() => document.querySelector("#riskTitle")?.textContent === "Baixo risco observado" && document.querySelector("#mode")?.textContent === "JEV OFF", { timeout: 5000, polling: 100 });
+    assert.equal(await sidepanel.$eval("#contextDetails", (node) => /sender\.example\.test|target\.example\.test/.test(node.textContent)), false, `${kind}: switching tabs removes the former message context`);
+    await otherPopup.close();
+    await page.bringToFront();
+    await sidepanel.waitForFunction(() => document.querySelector("#mode")?.textContent === "JEV ON" && document.querySelector("#contextDetails")?.textContent.includes("sender.example.test"), { timeout: 5000, polling: 100 });
+    await page.goto(`${new URL(fixtureUrl).origin}/synthetic-navigated`, { waitUntil: "domcontentloaded" });
+    await sidepanel.waitForFunction(() => document.querySelector("#riskTitle")?.textContent === "Análise inconclusiva" && document.querySelector("#feedbackCard").hidden && document.querySelector("#jevJudgmentsCard").hidden, { timeout: 5000, polling: 100 });
+    process.stdout.write(`${kind}: actual two-tab sidepanel events clear stale context, restore the correct tab result, and invalidate an analysis after navigation.\n`);
     await sidepanel.close();
     await smokeEmailAdapters(browser, new URL(fixtureUrl).origin, kind);
 
@@ -583,7 +691,11 @@ async function smokeBrowser(kind, fixtureUrl) {
     const finalSettings = await options.evaluate(() => new Promise((resolveMessage) => chrome.runtime.sendMessage({ type: "AEGIS_GET_SETTINGS" }, resolveMessage)));
     assert.equal(finalSettings.settings.jevEnabled, false, `${kind}: Jev remains OFF through the full local protection suite`);
     assert.deepEqual(workerHttpOrigins, [], `${kind}: Jev-OFF service worker makes no HTTP/S requests during the full smoke suite`);
-    process.stdout.write(`${kind}: install, offline Jev-OFF analysis, zero service-worker network requests, settings, link/form guards, feedback privacy, and input privacy passed.\n`);
+    assert.deepEqual(cspViolations, [], `${kind}: no product CSP violations were observed`);
+    assert.deepEqual(consoleErrors, [], `${kind}: options, popup, sidepanel and fixture have no uncaught page errors`);
+    await mkdir("release/evolution-0.3.0", { recursive: true });
+    await writeFile(`release/evolution-0.3.0/mv3-${kind}-evidence.json`, JSON.stringify({ generatedAt: new Date().toISOString(), browser: await browser.version(), provenance: "Real unpacked dist MV3 in temporary profile; synthetic local pages; Jev OFF. Semantic panel display uses explicitly mocked data bound to actual tab navigation.", contextMenuPermission: "granted-and-revoked-through-options-ui", broadHostPermission: continuousActive ? "granted-through-options-ui" : "native-confirmation-required-not-automated", continuousGuardChecks: continuousActive ? "passed" : "skipped-here-covered-with-mocked-transport-in-dynamic-dom", manualAnalysis: "passed", twoTabSidepanel: "passed", workerHttpOrigins, cspViolations, consoleErrors }, null, 2) + "\n");
+    process.stdout.write(`${kind}: install, offline Jev-OFF manual analysis, zero service-worker network requests, settings, two-tab UI, feedback/input privacy and CSP passed; continuous guard checks ${continuousActive ? "passed" : "explicitly skipped pending native host consent"}.\n`);
   } finally {
     await browser.close();
   }
@@ -626,7 +738,7 @@ const server = createServer((request, response) => {
     return;
   }
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-  response.end(pathname === "/synthetic-webmail" ? "<!doctype html><html><head><meta charset=utf-8><title>Synthetic webmail</title></head><body></body></html>" : pageMarkup);
+  response.end(pathname === "/synthetic-webmail" ? "<!doctype html><html><head><meta charset=utf-8><title>Synthetic webmail</title></head><body></body></html>" : pathname === "/synthetic-benign" ? "<!doctype html><html><head><meta charset=utf-8><title>Project documentation</title></head><body><main><h1>Project documentation</h1><p>Routine project reference, meeting minutes and ordinary informational guidance.</p></main></body></html>" : pageMarkup);
 });
 await new Promise((resolveListen, rejectListen) => {
   server.once("error", rejectListen);
@@ -635,7 +747,7 @@ await new Promise((resolveListen, rejectListen) => {
 const fixtureUrl = `http://127.0.0.1:${server.address().port}/synthetic-phishing`;
 try {
   await smokeBrowser("chrome", fixtureUrl);
-  await smokeBrowser("edge", fixtureUrl);
+  if (!process.argv.includes("--chrome-only")) await smokeBrowser("edge", fixtureUrl);
 } finally {
   await new Promise((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
 }
